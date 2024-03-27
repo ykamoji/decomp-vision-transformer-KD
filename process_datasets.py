@@ -29,7 +29,7 @@ def build_metrics(args):
     return compute_metrics
 
 
-def build_dataset(is_train, args):
+def build_dataset(is_train, args, show_details=True):
     feature_extractor = ViTImageProcessor.from_pretrained(args.model, cache_dir=args.model_dir)
 
     def preprocess(batchImage):
@@ -45,9 +45,9 @@ def build_dataset(is_train, args):
 
         num_labels = len(set(dataset_train['label']))
 
-        print(f"\nTraining info:{dataset_train}")
-
-        print(f"\nNumber of labels = {num_labels}, {dataset_train.features['label']}")
+        if show_details:
+            print(f"\nTraining info:{dataset_train}")
+            print(f"\nNumber of labels = {num_labels}, {dataset_train.features['label']}")
 
         prepared_train = dataset_train.with_transform(preprocess)
 
@@ -56,7 +56,8 @@ def build_dataset(is_train, args):
 
     prepared_test = dataset_test.with_transform(preprocess)
 
-    print(f"\nTesting info:{dataset_test}")
+    if show_details:
+        print(f"\nTesting info:{dataset_test}")
 
     if is_train:
         return num_labels, prepared_train, prepared_test
