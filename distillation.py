@@ -2,6 +2,11 @@ from arguments import get_distillation_args
 from process_datasets import build_dataset, build_metrics, collate_fn
 from transformers import TrainingArguments, ViTForImageClassification, DeiTForImageClassificationWithTeacher
 from loss import DistillationTrainer
+import warnings
+
+warnings.filterwarnings('ignore')
+
+IGNORE_KEYS = ['cls_logits', 'distillation_logits', 'hidden_states', 'attentions']
 
 
 def get_distillation_training_args(args):
@@ -31,18 +36,24 @@ def run_distillation(args):
 
     # print(teacher_model)
 
+    ## TODO:: Extend the teacher model to use linear transformation for the layer / attention at the end.
+    ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/transformer/modeling.py#L1119
+
     num_labels, training_data, testing_data = build_dataset(True, args, show_details=False)
 
     compute_metrics = build_metrics(args)
 
-    # TODO: Handle different classification architecture
+    if args.distillation_token:
+        classificationMode = DeiTForImageClassificationWithTeacher
+    else:
+        classificationMode = ViTForImageClassification
 
-    student_model = DeiTForImageClassificationWithTeacher.from_pretrained(args.student_model,
-                                                      num_labels=num_labels,
-                                                      cache_dir=args.model_dir,
-                                                      ignore_mismatched_sizes=True)
+    student_model = classificationMode.from_pretrained(args.student_model,
+                                                       num_labels=num_labels,
+                                                       cache_dir=args.model_dir,
+                                                       ignore_mismatched_sizes=True)
 
-    # print(student_model)
+    # print(classificationMode)
 
     distillation_args = get_distillation_training_args(args)
 
@@ -55,17 +66,18 @@ def run_distillation(args):
         train_dataset=training_data,
         eval_dataset=testing_data,
         temperature=5,
-        alpha=0.5
+        alpha=0.5,
+        distillation_token=args.distillation_token
     )
 
-    train_results = distillation_trainer.train(ignore_keys_for_eval=['cls_logits','distillation_logits','hidden_states','attentions'])
+    train_results = distillation_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)
 
     distillation_trainer.save_model(output_dir=args.results + args.distilled_dir + args.student_model)
     distillation_trainer.log_metrics("train", train_results.metrics)
     distillation_trainer.save_metrics("train", train_results.metrics)
     distillation_trainer.save_state()
 
-    metrics = distillation_trainer.evaluate(testing_data, ignore_keys=['cls_logits','distillation_logits','hidden_states','attentions'])
+    metrics = distillation_trainer.evaluate(testing_data, ignore_keys=IGNORE_KEYS)
     distillation_trainer.log_metrics("eval", metrics)
     distillation_trainer.save_metrics("eval", metrics)
 

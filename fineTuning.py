@@ -1,10 +1,12 @@
 from arguments import get_fine_tune_args
 from process_datasets import build_dataset, build_metrics, collate_fn
 from transformers import Trainer, TrainingArguments, ViTForImageClassification
+import warnings
+
+warnings.filterwarnings('ignore')
 
 
 def get_fine_tuning_trainer_args(args):
-
     output_path = args.results + 'fine-tuning-' + args.model.split('/')[-1] + '/'
 
     return TrainingArguments(
