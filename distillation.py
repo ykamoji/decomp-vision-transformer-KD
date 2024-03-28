@@ -35,7 +35,7 @@ def run_distillation(args):
 
     compute_metrics = build_metrics(args)
 
-    # TODO: create ViTForImageClassificationWithTeacher to a DistillationModel class and to use distillation_logits
+    # TODO: Handle different classification architecture
 
     student_model = DeiTForImageClassificationWithTeacher.from_pretrained(args.student_model,
                                                       num_labels=num_labels,
