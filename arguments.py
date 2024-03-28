@@ -11,8 +11,8 @@ def get_args_parser():
 
     parser.add_argument('--fine_tuned_dir', default='fine-tuned-models/')
 
-    parser.add_argument('--student_model', default='facebook/deit-tiny-patch16-224', type=str, metavar='MODEL',
-                        help='Name of model to distill')
+    parser.add_argument('--student_model', default='facebook/deit-base-distilled-patch16-224',
+                        type=str, metavar='MODEL', help='Name of model to distill')
     parser.add_argument('--distilled_dir', default='distilled-models/')
 
     parser.add_argument('--metrics', default="accuracy")
@@ -29,8 +29,8 @@ def get_args_parser():
 def get_fine_tune_args():
     parser = argparse.ArgumentParser('Model fine tuning script', add_help=True, parents=[get_args_parser()])
 
-    parser.add_argument('--batch-size', default=100, type=int)
-    parser.add_argument('--epochs', default=10, type=int)
+    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--epochs', default=1, type=int)
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--weight_decay', default=0, type=float)
 
@@ -40,9 +40,9 @@ def get_fine_tune_args():
 def get_distillation_args():
     parser = argparse.ArgumentParser('Model distillation training script', add_help=True, parents=[get_args_parser()])
 
-    parser.add_argument('--batch-size', default=100, type=int)
-    parser.add_argument('--epochs', default=50, type=int)
-    parser.add_argument('--lr', default=1e-3, type=float)
-    parser.add_argument('--weight_decay', default=1e-3, type=float)
+    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--epochs', default=1, type=int)
+    parser.add_argument('--lr', default=1e-4, type=float)
+    parser.add_argument('--weight_decay', default=0, type=float)
 
     return parser.parse_args()

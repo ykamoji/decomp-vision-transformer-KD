@@ -1,17 +1,16 @@
-from arguments import get_args_parser
-from process_datasets import build_dataset, collate_fn, build_metrics
-from transformers import TrainingArguments, ViTForImageClassification
+from arguments import get_distillation_args
+from process_datasets import build_dataset, build_metrics, collate_fn
+from transformers import TrainingArguments, ViTForImageClassification, DeiTForImageClassificationWithTeacher
 from loss import DistillationTrainer
 
 
 def get_distillation_training_args(args):
-
     output_path = args.results + 'distillation-' + args.student_model.split('/')[-1] + '/'
 
     return TrainingArguments(
         output_dir=output_path,
         logging_dir=output_path + 'logs/',
-        per_device_train_batch_size=16,
+        per_device_train_batch_size=args.batch_size,
         evaluation_strategy="steps",
         num_train_epochs=args.epochs,
         save_steps=100,
@@ -22,7 +21,8 @@ def get_distillation_training_args(args):
         save_total_limit=2,
         remove_unused_columns=False,
         push_to_hub=False,
-        load_best_model_at_end=True
+        load_best_model_at_end=True,
+        label_names=['labels']
     )
 
 
@@ -35,10 +35,12 @@ def run_distillation(args):
 
     compute_metrics = build_metrics(args)
 
-    student_model = ViTForImageClassification.from_pretrained(args.student_model,
-                                                              num_labels=num_labels,
-                                                              cache_dir=args.model_dir,
-                                                              ignore_mismatched_sizes=True)
+    # TODO: create ViTForImageClassificationWithTeacher to a DistillationModel class and to use distillation_logits
+
+    student_model = DeiTForImageClassificationWithTeacher.from_pretrained(args.student_model,
+                                                      num_labels=num_labels,
+                                                      cache_dir=args.model_dir,
+                                                      ignore_mismatched_sizes=True)
 
     # print(student_model)
 
@@ -56,18 +58,17 @@ def run_distillation(args):
         alpha=0.5
     )
 
-    train_results = distillation_trainer.train()
+    train_results = distillation_trainer.train(ignore_keys_for_eval=['cls_logits','distillation_logits','hidden_states','attentions'])
 
     distillation_trainer.save_model(output_dir=args.results + args.distilled_dir + args.student_model)
     distillation_trainer.log_metrics("train", train_results.metrics)
     distillation_trainer.save_metrics("train", train_results.metrics)
     distillation_trainer.save_state()
 
-    metrics = distillation_trainer.evaluate(testing_data)
+    metrics = distillation_trainer.evaluate(testing_data, ignore_keys=['cls_logits','distillation_logits','hidden_states','attentions'])
     distillation_trainer.log_metrics("eval", metrics)
     distillation_trainer.save_metrics("eval", metrics)
 
 
 if __name__ == '__main__':
-    args = get_args_parser()
-    run_distillation(args)
+    run_distillation(get_distillation_args())

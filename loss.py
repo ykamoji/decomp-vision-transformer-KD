@@ -23,18 +23,53 @@ class DistillationTrainer(Trainer):
         self.temperature = temperature
         self.alpha = alpha
 
+        self.printed = False
+
     def compute_loss(self, student, inputs, return_outputs=False):
-        student_output = self.student(**inputs)
+
+        student_inputs = inputs['pixel_values']
+        student_output = self.student(student_inputs, output_hidden_states=True, output_attentions=True)
 
         with torch.no_grad():
-            teacher_output = self.teacher(**inputs)
+            teacher_output = self.teacher(**inputs, output_hidden_states=True, output_attentions=True)
+
+            ##TODO Losses from embedding and attentions
+
+            if not self.printed:
+                # print(teacher_output.loss)
+                # print(teacher_output.logits.shape)
+
+                print("\n")
+                print("Student:")
+                print("Layers:")
+                print(len(student_output.hidden_states))
+                print(student_output.hidden_states[0].shape)
+                print("Attention layers")
+                print(len(student_output.attentions))
+                print(student_output.attentions[0].shape)
+
+                print("\n")
+
+                print("Teacher:")
+
+                print("Layers:")
+                print(len(teacher_output.hidden_states))
+                print(teacher_output.hidden_states[0].shape)
+                print("Attention layers")
+                print(len(teacher_output.attentions))
+                print(teacher_output.attentions[0].shape)
+
+                print("\n")
+
+                self.printed = True
 
         soft_teacher = F.softmax(teacher_output.logits / self.temperature, dim=-1)
-        soft_student = F.log_softmax(student_output.logits / self.temperature, dim=-1)
+        soft_student = F.log_softmax(student_output.distillation_logits / self.temperature, dim=-1)
 
         distillation_loss = self.loss_function(soft_student, soft_teacher) * (self.temperature ** 2)
 
-        student_target_loss = student_output.loss
+        student_target_loss = F.cross_entropy(student_output.logits, inputs['labels'])
 
         loss = (1. - self.alpha) * student_target_loss + self.alpha * distillation_loss
+
         return (loss, student_output) if return_outputs else loss

@@ -1,5 +1,5 @@
 from arguments import get_fine_tune_args
-from process_datasets import build_dataset, collate_fn, build_metrics
+from process_datasets import build_dataset, build_metrics, collate_fn
 from transformers import Trainer, TrainingArguments, ViTForImageClassification
 
 
@@ -10,7 +10,7 @@ def get_fine_tuning_trainer_args(args):
     return TrainingArguments(
         output_dir=output_path,
         logging_dir=output_path + 'logs/',
-        per_device_train_batch_size=16,
+        per_device_train_batch_size=args.batch_size,
         evaluation_strategy="steps",
         num_train_epochs=args.epochs,
         save_steps=100,
