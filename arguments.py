@@ -45,4 +45,6 @@ def get_distillation_args():
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--weight_decay', default=0, type=float)
 
+    parser.add_argument('--distillation_token', default=True, type=bool)
+
     return parser.parse_args()
