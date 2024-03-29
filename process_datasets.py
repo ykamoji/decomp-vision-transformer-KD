@@ -4,6 +4,8 @@ from transformers import ViTImageProcessor
 import torch
 import numpy as np
 
+
+
 def collate_fn(batch):
     return {
         'pixel_values': torch.stack([x['pixel_values'] for x in batch]),

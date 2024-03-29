@@ -36,7 +36,7 @@ def run_distillation(args):
 
     # print(teacher_model)
 
-    ## TODO:: Extend the teacher model to use linear transformation for the layer / attention at the end.
+    ## TODO:: Extend the student model to use linear transformation for the layer at the end.
     ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/transformer/modeling.py#L1119
 
     num_labels, training_data, testing_data = build_dataset(True, args, show_details=False)
@@ -67,7 +67,8 @@ def run_distillation(args):
         eval_dataset=testing_data,
         temperature=5,
         alpha=0.5,
-        distillation_token=args.distillation_token
+        distillation_token=args.distillation_token,
+        distillation_type=args.distillation_type
     )
 
     train_results = distillation_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)
