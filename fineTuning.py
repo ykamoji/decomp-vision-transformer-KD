@@ -1,6 +1,7 @@
 from arguments import get_fine_tune_args
 from process_datasets import build_dataset, build_metrics, collate_fn
-from transformers import Trainer, TrainingArguments, ViTForImageClassification
+from transformers import Trainer, TrainingArguments
+from utils.modeling_vit import ViTForImageClassification
 import warnings
 
 warnings.filterwarnings('ignore')

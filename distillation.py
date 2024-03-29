@@ -1,6 +1,7 @@
 from arguments import get_distillation_args
 from process_datasets import build_dataset, build_metrics, collate_fn
-from transformers import TrainingArguments, ViTForImageClassification, DeiTForImageClassificationWithTeacher
+from transformers import TrainingArguments, DeiTForImageClassificationWithTeacher
+from utils.modeling_vit import ViTForImageClassification
 from loss import DistillationTrainer
 import warnings
 
