@@ -4,6 +4,9 @@ import argparse
 def get_args_parser():
     parser = argparse.ArgumentParser('Common script', add_help=False)
 
+    parser.add_argument('--model', default='google/vit-base-patch16-224-in21k', type=str, metavar='MODEL',
+                        help='Pretrained model to finetune')
+
     parser.add_argument('--model_dir', default='model/', help='Directory to save the pretrained model')
     parser.add_argument('--results', default='results/',
                         help='Root directory to save models, metrics, logs')
@@ -25,9 +28,6 @@ def get_args_parser():
 
 def get_fine_tune_args():
     parser = argparse.ArgumentParser('Model fine tuning script', add_help=True, parents=[get_args_parser()])
-
-    parser.add_argument('--model', default='google/vit-base-patch16-224-in21k', type=str, metavar='MODEL',
-                        help='Pretrained model to finetune')
 
     parser.add_argument('--batch_size', default=64, type=int, help='Fine tuning batch size')
     parser.add_argument('--epochs', default=1, type=int, help='Fine tuning epochs')
@@ -51,7 +51,6 @@ def get_distillation_args():
                         help='Distillation training weight decay')
     parser.add_argument('--distillation_token', default=True, type=bool,
                         help='For pretrained distilled models')
-    parser.add_argument('--distillation_type', default=True, type=bool,
-                        help='')
+    parser.add_argument('--distillation_type', default='soft', help='To use KL divergence')
 
     return parser.parse_args()

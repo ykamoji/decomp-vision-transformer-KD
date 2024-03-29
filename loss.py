@@ -111,8 +111,8 @@ class DistillationTrainer(Trainer):
 
         loss = (1. - self.alpha) * student_loss + self.alpha * distillation_loss
 
-        loss += self._attn_loss(teacher_output.attentions, student_output.attentions)
+        # loss += self._attn_loss(teacher_output.attentions, student_output.attentions)
 
-        loss += self._layer_loss(teacher_output.hidden_states, student_output.hidden_states)
+        # loss += self._layer_loss(teacher_output.hidden_states, student_output.hidden_states)
 
         return (loss, student_output) if return_outputs else loss
