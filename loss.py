@@ -63,11 +63,13 @@ class DistillationTrainer(Trainer):
 
     ## TODO: MSE loss for the layers
     ##  For distillation with distillation tokens, remove the distil token from the tensor
+    ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/task_distill.py#L935
     def _layer_loss(self, teacher_layers, student_layers):
         return torch.zeros(1)
 
     ## TODO: MSE loss for the attn
     ##  For distillation with distillation tokens, remove the distil token from the tensor
+    ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/task_distill.py#L935
     def _attn_loss(self, teacher_attn, student_attn):
         return torch.zeros(1)
 
