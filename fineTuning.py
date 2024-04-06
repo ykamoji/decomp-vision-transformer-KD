@@ -1,6 +1,7 @@
 from arguments import get_fine_tune_args
 from process_datasets import build_dataset, build_metrics, collate_fn
 from transformers import Trainer, TrainingArguments, ViTForImageClassification
+from transformers.training_args import OptimizerNames
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -12,18 +13,26 @@ def get_fine_tuning_trainer_args(args):
     return TrainingArguments(
         output_dir=output_path,
         logging_dir=output_path + 'logs/',
-        per_device_train_batch_size=args.batch_size,
+        per_device_train_batch_size=args.train_batch_size,
+        per_device_eval_batch_size=args.val_batch_size,
         evaluation_strategy="steps",
         num_train_epochs=args.epochs,
         save_steps=100,
         eval_steps=50,
         logging_steps=10,
         learning_rate=args.lr,
+        warmup_ratio=0.1,
+        warmup_steps=1,
         weight_decay=args.weight_decay,
         save_total_limit=2,
+        metric_for_best_model='accuracy',
+        greater_is_better=True,
+        optim=OptimizerNames.ADAMW_HF,
         remove_unused_columns=False,
         push_to_hub=False,
-        load_best_model_at_end=True
+        load_best_model_at_end=True,
+        seed=42,
+        gradient_accumulation_steps=4,
     )
 
 

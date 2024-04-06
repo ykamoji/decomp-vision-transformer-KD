@@ -20,8 +20,8 @@ def get_args_parser():
 
     parser.add_argument('--dataset', default='cifar10', help='Dataset name')
     parser.add_argument('--dataset_dir', default='', help='Dataset directory')
-    parser.add_argument('--train', default='1%', help='Training dataset size')
-    parser.add_argument('--test', default='1%', help='Testing dataset size')
+    parser.add_argument('--train', default='', help='Training dataset size')
+    parser.add_argument('--test', default='', help='Testing dataset size')
 
     return parser
 
@@ -29,9 +29,10 @@ def get_args_parser():
 def get_fine_tune_args():
     parser = argparse.ArgumentParser('Model fine tuning script', add_help=True, parents=[get_args_parser()])
 
-    parser.add_argument('--batch_size', default=64, type=int, help='Fine tuning batch size')
+    parser.add_argument('--train_batch_size', default=32, type=int, help='Fine tuning train batch size')
+    parser.add_argument('--val_batch_size', default=32, type=int, help='Fine tuning validation batch size')
     parser.add_argument('--epochs', default=1, type=int, help='Fine tuning epochs')
-    parser.add_argument('--lr', default=1e-4, type=float, help='Fine tuning learning rate')
+    parser.add_argument('--lr', default=5e-05, type=float, help='Fine tuning learning rate')
     parser.add_argument('--weight_decay', default=0, type=float, help='Fine tuning weight decay')
 
     return parser.parse_args()
