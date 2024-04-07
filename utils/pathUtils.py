@@ -18,7 +18,7 @@ def check_and_update_model_path(root, model):
         raise Exception("Model name cannot be empty!")
     run_index = 0
     model_path = root + model.split('/')[-1]
-    if os.path.exists(model_path):
+    if os.path.exists(model_path) and len(os.listdir(model_path)) > 0:
         current_index = max([int(run.split("run_")[-1]) for run in os.listdir(model_path)])
         run_index = current_index + 1
     path = model_path + f"/run_{run_index}"

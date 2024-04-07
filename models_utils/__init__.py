@@ -1,2 +1,2 @@
 from models_utils.modeling_vit import ViTForImageClassification
-from models_utils.modeling_deit import DeiTForImageClassificationWithTeacher
+from models_utils.modeling_deit import DeiTForImageClassification, DeiTForImageClassificationWithTeacher

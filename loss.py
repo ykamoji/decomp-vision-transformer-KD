@@ -98,7 +98,7 @@ class DistillationTrainer(Trainer):
         if self.distillation_token:
             student_inputs = inputs['pixel_values']
 
-        student_output = self.student(student_inputs, output_hidden_states=True, output_attentions=True)
+        student_output = self.student(**student_inputs, output_hidden_states=True, output_attentions=True)
 
         with torch.no_grad():
             teacher_output = self.teacher(**inputs, output_hidden_states=True, output_attentions=True)

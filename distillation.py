@@ -1,7 +1,7 @@
 from arguments import get_distillation_args
 from process_datasets import build_dataset, build_metrics, collate_fn
 from transformers import TrainingArguments
-from models_utils import ViTForImageClassification, DeiTForImageClassificationWithTeacher
+from models_utils import ViTForImageClassification, DeiTForImageClassification, DeiTForImageClassificationWithTeacher
 from transformers.training_args import OptimizerNames
 from loss import DistillationTrainer
 from utils.pathUtils import prepare_output_path, get_model_path
