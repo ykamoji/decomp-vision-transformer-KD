@@ -1,6 +1,7 @@
 from arguments import get_fine_tune_args
 from process_datasets import build_dataset, build_metrics, collate_fn
-from transformers import Trainer, TrainingArguments, ViTForImageClassification
+from transformers import Trainer, TrainingArguments
+from models_utils import ViTForImageClassification
 from transformers.training_args import OptimizerNames
 from utils.pathUtils import prepare_output_path
 import warnings
