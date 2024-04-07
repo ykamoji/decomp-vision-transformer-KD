@@ -2,16 +2,16 @@ from arguments import get_fine_tune_args
 from process_datasets import build_dataset, build_metrics, collate_fn
 from transformers import Trainer, TrainingArguments, ViTForImageClassification
 from transformers.training_args import OptimizerNames
+from utils.pathUtils import prepare_output_path
 import warnings
 
 warnings.filterwarnings('ignore')
 
 
-def get_fine_tuning_trainer_args(args):
-    output_path = args.results + 'fine-tuning-' + args.model.split('/')[-1] + '/'
+def get_fine_tuning_trainer_args(output_path, args):
 
     return TrainingArguments(
-        output_dir=output_path,
+        output_dir=output_path + 'training/',
         logging_dir=output_path + 'logs/',
         per_device_train_batch_size=args.train_batch_size,
         per_device_eval_batch_size=args.val_batch_size,
@@ -35,7 +35,6 @@ def get_fine_tuning_trainer_args(args):
         gradient_accumulation_steps=4,
     )
 
-
 def fine_tuning(args):
     print(args)
 
@@ -43,7 +42,9 @@ def fine_tuning(args):
 
     compute_metrics = build_metrics(args)
 
-    fine_tune_args = get_fine_tuning_trainer_args(args)
+    output_path = prepare_output_path('FineTuned', args)
+
+    fine_tune_args = get_fine_tuning_trainer_args(output_path, args)
 
     pretrained_model = ViTForImageClassification.from_pretrained(args.model,
                                                                  num_labels=num_labels,
@@ -61,7 +62,7 @@ def fine_tuning(args):
 
     train_results = fine_tune_trainer.train()
 
-    fine_tune_trainer.save_model(output_dir=args.results + args.fine_tuned_dir + args.model)
+    fine_tune_trainer.save_model(output_dir=output_path + args.fine_tuned_dir)
     fine_tune_trainer.log_metrics("train", train_results.metrics)
     fine_tune_trainer.save_metrics("train", train_results.metrics)
     fine_tune_trainer.save_state()
