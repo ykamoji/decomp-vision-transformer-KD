@@ -1,7 +1,9 @@
 from arguments import get_distillation_args
 from process_datasets import build_dataset, build_metrics, collate_fn
 from transformers import TrainingArguments, ViTForImageClassification, DeiTForImageClassificationWithTeacher
+from transformers.training_args import OptimizerNames
 from loss import DistillationTrainer
+from utils.pathUtils import prepare_output_path, get_model_path
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -9,30 +11,41 @@ warnings.filterwarnings('ignore')
 IGNORE_KEYS = ['cls_logits', 'distillation_logits', 'hidden_states', 'attentions']
 
 
-def get_distillation_training_args(args):
-    output_path = args.results + 'distillation-' + args.student_model.split('/')[-1] + '/'
+def get_distillation_training_args(output_path, args):
 
     return TrainingArguments(
-        output_dir=output_path,
+        output_dir=output_path + 'training/',
         logging_dir=output_path + 'logs/',
-        per_device_train_batch_size=args.batch_size,
+        per_device_train_batch_size=args.train_batch_size,
+        per_device_eval_batch_size=args.val_batch_size,
         evaluation_strategy="steps",
         num_train_epochs=args.epochs,
-        save_steps=100,
-        eval_steps=50,
+        save_steps=30,
+        eval_steps=30,
         logging_steps=10,
         learning_rate=args.lr,
+        warmup_ratio=0.1,
+        warmup_steps=1,
         weight_decay=args.weight_decay,
         save_total_limit=2,
+        metric_for_best_model='accuracy',
+        greater_is_better=True,
+        optim=OptimizerNames.ADAMW_HF,
         remove_unused_columns=False,
         push_to_hub=False,
         load_best_model_at_end=True,
-        label_names=['labels']
+        seed=42,
+        gradient_accumulation_steps=4,
+        label_names=['labels'],
     )
 
 
 def run_distillation(args):
-    teacher_model = ViTForImageClassification.from_pretrained(args.results + args.fine_tuned_dir + args.model)
+    print(args)
+
+    fine_tuned_model_path = get_model_path('FineTuned', args)
+
+    teacher_model = ViTForImageClassification.from_pretrained(fine_tuned_model_path)
 
     # print(teacher_model)
 
@@ -55,7 +68,9 @@ def run_distillation(args):
 
     # print(classificationMode)
 
-    distillation_args = get_distillation_training_args(args)
+    output_path = prepare_output_path('Distilled', args)
+
+    distillation_args = get_distillation_training_args(output_path, args)
 
     distillation_trainer = DistillationTrainer(
         teacher_model=teacher_model,
@@ -73,7 +88,7 @@ def run_distillation(args):
 
     train_results = distillation_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)
 
-    distillation_trainer.save_model(output_dir=args.results + args.distilled_dir + args.student_model)
+    distillation_trainer.save_model(output_dir=output_path + args.distilled_dir)
     distillation_trainer.log_metrics("train", train_results.metrics)
     distillation_trainer.save_metrics("train", train_results.metrics)
     distillation_trainer.save_state()

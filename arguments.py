@@ -20,8 +20,8 @@ def get_args_parser():
 
     parser.add_argument('--dataset', default='cifar10', help='Dataset name')
     parser.add_argument('--dataset_dir', default='', help='Dataset directory')
-    parser.add_argument('--train', default='25%', help='Training dataset size')
-    parser.add_argument('--test', default='100%', help='Testing dataset size')
+    parser.add_argument('--train', default='', help='Training dataset size')
+    parser.add_argument('--test', default='', help='Testing dataset size')
 
     return parser
 
