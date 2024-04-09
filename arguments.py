@@ -18,7 +18,8 @@ def get_args_parser():
 
     parser.add_argument('--distilled_dir', default='distilled-model/')
 
-    parser.add_argument('--dataset', default='cifar10', help='Dataset name')
+    parser.add_argument('--dataset', default='cifar100', help='Dataset name')
+    parser.add_argument('--dataset_labels', default='label', help='Dataset name')
     parser.add_argument('--dataset_dir', default='', help='Dataset directory')
     parser.add_argument('--train', default='', help='Training dataset size')
     parser.add_argument('--test', default='', help='Testing dataset size')

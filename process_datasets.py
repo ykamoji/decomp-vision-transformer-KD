@@ -7,9 +7,17 @@ import numpy as np
 
 
 def collate_fn(batch):
+
+    key = 'label'
+    keys = batch[0].keys()
+
+    if key not in keys:
+        key = 'fine_label'
+
+
     return {
         'pixel_values': torch.stack([x['pixel_values'] for x in batch]),
-        'labels': torch.tensor([x['label'] for x in batch])
+        'labels': torch.tensor([x[key] for x in batch])
     }
 
 
@@ -34,9 +42,11 @@ def build_metrics(args):
 def build_dataset(is_train, args, show_details=True):
     feature_extractor = ViTImageProcessor.from_pretrained(args.model, cache_dir=args.model_dir)
 
+    key = args.dataset_labels
+
     def preprocess(batchImage):
         inputs = feature_extractor(batchImage['img'], return_tensors='pt')
-        inputs['label'] = batchImage['label']
+        inputs['label'] = batchImage[key]
         return inputs
 
     prepared_train = None
@@ -45,11 +55,12 @@ def build_dataset(is_train, args, show_details=True):
         dataset_train = load_dataset(args.dataset, split=f"train[:{args.train}]", verification_mode='no_checks',
                                      cache_dir=args.dataset_dir + "/train")
 
-        num_labels = len(set(dataset_train['label']))
+
+        num_labels = len(set(dataset_train[key]))
 
         if show_details:
             print(f"\nTraining info:{dataset_train}")
-            print(f"\nNumber of labels = {num_labels}, {dataset_train.features['label']}")
+            print(f"\nNumber of labels = {num_labels}, {dataset_train.features[key]}")
 
         prepared_train = dataset_train.with_transform(preprocess)
 
