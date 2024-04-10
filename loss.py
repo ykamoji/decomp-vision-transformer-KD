@@ -17,7 +17,7 @@ class DistillationTrainer(Trainer):
         super().__init__(model=student_model, *args, **kwargs)
         self.teacher = teacher_model
         self.student = student_model
-        self.distillation_loss_fun = nn.KLDivLoss(reduction="batchmean")
+        self.distillation_loss_fun = nn.KLDivLoss(reduction="sum", log_target=True)
 
         device = 'cpu'
         if torch.cuda.is_available():
@@ -45,10 +45,10 @@ class DistillationTrainer(Trainer):
 
         if self.distillation_type == 'soft':
 
-            soft_teacher = F.softmax(teacher_output.logits / self.temperature, dim=-1)
+            soft_teacher = F.log_softmax(teacher_output.logits / self.temperature, dim=-1)
             soft_student = F.log_softmax(student_tokens / self.temperature, dim=-1)
 
-            return self.distillation_loss_fun(soft_student, soft_teacher) * (self.temperature ** 2)
+            return self.distillation_loss_fun(soft_student, soft_teacher) * (self.temperature ** 2) / student_tokens.numel()
 
         elif self.distillation_type == 'hard':
 
@@ -57,7 +57,7 @@ class DistillationTrainer(Trainer):
     def _student_loss(self, student_output, labels):
 
         if self.distillation_token:
-            return self.student_loss_fn(student_output.logits, labels)
+            return self.student_loss_fn(student_output.cls_logits, labels)
         else:
             return student_output.loss
 
@@ -78,11 +78,12 @@ class DistillationTrainer(Trainer):
         if not self.printed:
 
             for model_name, logits, hidden_layers, attn_layers in zip(["Teacher", "Student"],
-                                                                      [teacher_output.logits, student_output.logits],
+                                                                      [teacher_output.logits,
+                                                                       student_output.logits],
                                                                       [teacher_output.hidden_states,
                                                                        student_output.hidden_states],
-                                                                      [student_output.attentions,
-                                                                       teacher_output.attentions]):
+                                                                      [teacher_output.attentions,
+                                                                       student_output.attentions]):
                 print(f"\n{model_name}:")
                 print(f"Logits Shape = {logits.shape}")
                 print(f"Hidden Layers:\nDepth = {len(hidden_layers)}\nShape = {hidden_layers[0].shape}")

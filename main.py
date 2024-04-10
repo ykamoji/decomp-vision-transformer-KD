@@ -6,9 +6,8 @@ import json
 loader = yaml.SafeLoader
 
 
-if __name__ == '__main__':
-
-    with open('config.yaml', 'r') as file:
+def start(configPath):
+    with open(configPath, 'r') as file:
         config = yaml.load(file, get_yaml_loader())
 
     x = json.dumps(config)
@@ -19,3 +18,8 @@ if __name__ == '__main__':
 
     if Args.Distillation.Action:
         run_distillation(Args)
+
+
+if __name__ == '__main__':
+    start('config.yaml')
+
