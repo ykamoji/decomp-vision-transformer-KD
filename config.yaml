@@ -13,7 +13,7 @@ Common:
 FineTuning:
   Action: True
   Model:
-    Name: facebook/deit-base-distilled-patch16-224
+    Name: google/vit-base-patch16-224-in21k
     CachePath : model/
     OutputPath: tuned-model/
   Hyperparameters:
