@@ -8,16 +8,9 @@ import numpy as np
 
 def collate_fn(batch):
 
-    key = 'label'
-    keys = batch[0].keys()
-
-    if key not in keys:
-        key = 'fine_label'
-
-
     return {
         'pixel_values': torch.stack([x['pixel_values'] for x in batch]),
-        'labels': torch.tensor([x[key] for x in batch])
+        'labels': torch.tensor([x['label'] for x in batch])
     }
 
 
