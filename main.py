@@ -1,7 +1,21 @@
-from arguments import get_fine_tune_args, get_distillation_args
 from fineTuning import fine_tuning
 from distillation import run_distillation
+from utils.argUtils import CustomObject, get_yaml_loader
+import yaml
+import json
+loader = yaml.SafeLoader
+
 
 if __name__ == '__main__':
-    fine_tuning(get_fine_tune_args())
-    run_distillation(get_distillation_args())
+
+    with open('config.yaml', 'r') as file:
+        config = yaml.load(file, get_yaml_loader())
+
+    x = json.dumps(config)
+    Args = json.loads(x, object_hook=lambda d: CustomObject(**d))
+
+    if Args.FineTuning.Action:
+        fine_tuning(Args)
+
+    if Args.Distillation.Action:
+        run_distillation(Args)

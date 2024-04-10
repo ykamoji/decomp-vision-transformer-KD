@@ -1,4 +1,3 @@
-from arguments import get_distillation_args
 from process_datasets import build_dataset, build_metrics, collate_fn
 from transformers import TrainingArguments
 from models_utils import ViTForImageClassification, DeiTForImageClassification, DeiTForImageClassificationWithTeacher
@@ -12,22 +11,22 @@ warnings.filterwarnings('ignore')
 IGNORE_KEYS = ['cls_logits', 'distillation_logits', 'hidden_states', 'attentions']
 
 
-def get_distillation_training_args(output_path, args):
+def get_distillation_training_args(output_path, hyperparameters):
 
     return TrainingArguments(
         output_dir=output_path + 'training/',
         logging_dir=output_path + 'logs/',
-        per_device_train_batch_size=args.train_batch_size,
-        per_device_eval_batch_size=args.val_batch_size,
+        per_device_train_batch_size=hyperparameters.TrainBatchSize,
+        per_device_eval_batch_size=hyperparameters.EvalBatchSize,
         evaluation_strategy="steps",
-        num_train_epochs=args.epochs,
+        num_train_epochs=hyperparameters.Epochs,
         save_steps=30,
         eval_steps=30,
         logging_steps=10,
-        learning_rate=args.lr,
+        learning_rate=hyperparameters.Lr,
         warmup_ratio=0.1,
         warmup_steps=1,
-        weight_decay=args.weight_decay,
+        weight_decay=hyperparameters.WeightDecay,
         save_total_limit=2,
         metric_for_best_model='accuracy',
         greater_is_better=True,
@@ -41,10 +40,9 @@ def get_distillation_training_args(output_path, args):
     )
 
 
-def run_distillation(args):
-    print(args)
+def run_distillation(Args):
 
-    fine_tuned_model_path = get_model_path('FineTuned', args)
+    fine_tuned_model_path = get_model_path('FineTuned', Args)
 
     teacher_model = ViTForImageClassification.from_pretrained(fine_tuned_model_path)
 
@@ -53,25 +51,25 @@ def run_distillation(args):
     ## TODO:: Extend the student model to use linear transformation for the layer at the end.
     ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/transformer/modeling.py#L1119
 
-    num_labels, training_data, testing_data = build_dataset(True, args, show_details=False)
+    num_labels, training_data, testing_data = build_dataset(True, Args, show_details=False)
 
-    compute_metrics = build_metrics(args)
+    compute_metrics = build_metrics(Args.Common.Metrics)
 
-    if args.distillation_token:
+    if Args.Distillation.UseDistTokens:
         classificationMode = DeiTForImageClassificationWithTeacher
     else:
         classificationMode = ViTForImageClassification
 
-    student_model = classificationMode.from_pretrained(args.student_model,
+    student_model = classificationMode.from_pretrained(Args.student_model,
                                                        num_labels=num_labels,
-                                                       cache_dir=args.model_dir,
+                                                       cache_dir=Args.model_dir,
                                                        ignore_mismatched_sizes=True)
 
     # print(classificationMode)
 
-    output_path = prepare_output_path('Distilled', args)
+    output_path = prepare_output_path('Distilled', Args)
 
-    distillation_args = get_distillation_training_args(output_path, args)
+    distillation_args = get_distillation_training_args(output_path, Args.Distillation.Hyperparameters)
 
     distillation_trainer = DistillationTrainer(
         teacher_model=teacher_model,
@@ -83,13 +81,13 @@ def run_distillation(args):
         eval_dataset=testing_data,
         temperature=5,
         alpha=0.5,
-        distillation_token=args.distillation_token,
-        distillation_type=args.distillation_type
+        distillation_token=Args.distillation_token,
+        distillation_type=Args.distillation_type
     )
 
     train_results = distillation_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)
 
-    distillation_trainer.save_model(output_dir=output_path + args.distilled_dir)
+    distillation_trainer.save_model(output_dir=output_path + Args.distilled_dir)
     distillation_trainer.log_metrics("train", train_results.metrics)
     distillation_trainer.save_metrics("train", train_results.metrics)
     distillation_trainer.save_state()
@@ -99,5 +97,3 @@ def run_distillation(args):
     distillation_trainer.save_metrics("eval", metrics)
 
 
-if __name__ == '__main__':
-    run_distillation(get_distillation_args())

@@ -1,0 +1,44 @@
+Common:
+  Results: results/
+  Metrics:
+    Name: accuracy
+    CachePath: metrics/
+  DataSet:
+    Name: cifar10
+    Label: label
+    Path: !ENV ${DATASET_PATH} # Update the dataset path here or add DATASET_PATH to environment.
+    Train: '26%' # Set <>% or <> exact number of batches to train
+    Test: '100%' # Set <>% or <> exact number of batches to test
+
+FineTuning:
+  Action: True
+  Model:
+    Name: facebook/deit-base-distilled-patch16-224
+    CachePath : model/
+    OutputPath: tuned-model/
+  Hyperparameters:
+    TrainBatchSize: 32
+    EvalBatchSize: 32
+    Epochs: 1
+    Lr: 5.e-05
+    WeightDecay: 0.0
+
+Distillation:
+  Action: False
+  Model:
+    Name: google/vit-base-patch16-224-in21k
+    CachePath: model/
+    OutputPath: tuned-model/
+    Index: -1   # set -1 to perform distillation with the last fine-tuned model of that dataset otherwise set the index manually.
+  StudentModel:
+    Name: facebook/deit-base-distilled-patch16-224
+    CachePath: model/
+    OutputPath: distilled-model/
+  Hyperparameters:
+    TrainBatchSize: 32
+    EvalBatchSize: 32
+    Epochs: 1
+    Lr: 5.e-05
+    WeightDecay: 0.0
+  UseDistTokens: True
+  DistillationType: soft # Set soft for KL divergence loss using probability or hard for cross entropy loss with logits
