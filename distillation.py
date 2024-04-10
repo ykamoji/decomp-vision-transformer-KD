@@ -1,6 +1,6 @@
 from process_datasets import build_dataset, build_metrics, collate_fn
 from transformers import TrainingArguments
-from models_utils import ViTForImageClassification, DeiTForImageClassification, DeiTForImageClassificationWithTeacher
+from models_utils import ViTForImageClassification, DeiTForImageClassificationWithTeacher
 from transformers.training_args import OptimizerNames
 from loss import DistillationTrainer
 from utils.pathUtils import prepare_output_path, get_model_path
@@ -20,8 +20,8 @@ def get_distillation_training_args(output_path, hyperparameters):
         per_device_eval_batch_size=hyperparameters.EvalBatchSize,
         evaluation_strategy="steps",
         num_train_epochs=hyperparameters.Epochs,
-        save_steps=30,
-        eval_steps=30,
+        save_steps=20,
+        eval_steps=20,
         logging_steps=10,
         learning_rate=hyperparameters.Lr,
         warmup_ratio=0.1,
@@ -60,9 +60,9 @@ def run_distillation(Args):
     else:
         classificationMode = ViTForImageClassification
 
-    student_model = classificationMode.from_pretrained(Args.student_model,
+    student_model = classificationMode.from_pretrained(Args.Distillation.StudentModel.Name,
                                                        num_labels=num_labels,
-                                                       cache_dir=Args.model_dir,
+                                                       cache_dir=Args.Distillation.StudentModel.CachePath,
                                                        ignore_mismatched_sizes=True)
 
     # print(classificationMode)
@@ -81,13 +81,13 @@ def run_distillation(Args):
         eval_dataset=testing_data,
         temperature=5,
         alpha=0.5,
-        distillation_token=Args.distillation_token,
-        distillation_type=Args.distillation_type
+        distillation_token=Args.Distillation.UseDistTokens,
+        distillation_type=Args.Distillation.DistillationType
     )
 
     train_results = distillation_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)
 
-    distillation_trainer.save_model(output_dir=output_path + Args.distilled_dir)
+    distillation_trainer.save_model(output_dir=output_path + Args.Distillation.StudentModel.OutputPath)
     distillation_trainer.log_metrics("train", train_results.metrics)
     distillation_trainer.save_metrics("train", train_results.metrics)
     distillation_trainer.save_state()
@@ -95,5 +95,8 @@ def run_distillation(Args):
     metrics = distillation_trainer.evaluate(testing_data, ignore_keys=IGNORE_KEYS)
     distillation_trainer.log_metrics("eval", metrics)
     distillation_trainer.save_metrics("eval", metrics)
+
+    with open(output_path + '/training/'+'config.json', 'x', encoding='utf-8') as f:
+        f.write(Args.toJSON())
 
 

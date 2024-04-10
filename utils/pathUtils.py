@@ -27,7 +27,7 @@ def check_and_update_model_path(root, dataset, model):
 
 
 def check_model_path(root, model, dataset, index):
-    model_path = root + model.split('/')[-1]
+    model_path = root + model.split('/')[-1] + '/' + dataset
     if os.path.exists(model_path):
         if index == -1:
             latest_index = max([int(run.split("run_")[-1]) for run in os.listdir(model_path)])
@@ -35,7 +35,7 @@ def check_model_path(root, model, dataset, index):
             latest_index = index
     else:
         raise Exception("Fine tuned model not found !")
-    path = model_path + "/" + dataset + f"/run_{latest_index}"
+    path = model_path + f"/run_{latest_index}"
     return path
 
 

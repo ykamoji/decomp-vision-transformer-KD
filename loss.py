@@ -96,7 +96,7 @@ class DistillationTrainer(Trainer):
 
         student_inputs = inputs
         if self.distillation_token:
-            student_inputs = inputs['pixel_values']
+            student_inputs = {'pixel_values': inputs['pixel_values']}
 
         student_output = self.student(**student_inputs, output_hidden_states=True, output_attentions=True)
 
