@@ -1,5 +1,5 @@
 Common:
-  Results: results/
+  Results: Results/
   Metrics:
     Name: accuracy
     CachePath: metrics/
