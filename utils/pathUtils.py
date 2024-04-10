@@ -4,10 +4,11 @@ import os
 def prepare_output_path(step, args):
     root = args.results + step + '/'
     model_name = ''
-    if step == 'FineTuned':
+    if step == 'FineTuned' or step == 'Visualize':
         model_name = args.model
     elif step == 'Distilled':
         model_name = args.student_model
+
     output_path = check_and_update_model_path(root, model_name)
     output_path += '/'
     return output_path
