@@ -1,5 +1,6 @@
 from fineTuning import fine_tuning
 from distillation import run_distillation
+from visualisation import visualize
 from utils.argUtils import CustomObject, get_yaml_loader
 import yaml
 import json
@@ -18,6 +19,9 @@ def start(configPath):
 
     if Args.Distillation.Action:
         run_distillation(Args)
+
+    if Args.Visualization.Action:
+        visualize(Args)
 
 
 if __name__ == '__main__':

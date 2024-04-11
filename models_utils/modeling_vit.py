@@ -207,8 +207,10 @@ class ViTSelfAttention(nn.Module):
         return x.permute(0, 2, 1, 3)
 
     def forward(
-        self, hidden_states, head_mask: Optional[torch.Tensor] = None, output_attentions: bool = False
-    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
+        self, hidden_states, head_mask: Optional[torch.Tensor] = None, output_attentions: bool = False,
+        output_norms: Optional[bool] = False,
+        output_globenc: Optional[bool] = False,
+    ) -> Union[Tuple[torch.Tensor, torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
         mixed_query_layer = self.query(hidden_states)
 
         key_layer = self.transpose_for_scores(self.key(hidden_states))
@@ -237,6 +239,10 @@ class ViTSelfAttention(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(new_context_layer_shape)
 
+        if output_norms or output_globenc:
+            outputs = (context_layer, attention_probs, value_layer)
+            return outputs
+
         outputs = (context_layer, attention_probs) if output_attentions else (context_layer,)
 
         return outputs
@@ -259,6 +265,115 @@ class ViTSelfOutput(nn.Module):
 
         return hidden_states
 
+
+class VitNormOutput(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.num_attention_heads = config.num_attention_heads
+        self.attention_head_size = int(config.hidden_size / config.num_attention_heads)
+        self.all_head_size = self.num_attention_heads * self.attention_head_size
+
+    def forward(self, hidden_states, attention_probs, value_layer, dense, LayerNorm, pre_ln_states, globenc_only):
+        # Args:
+        #   hidden_states: Representations from previous layer and inputs to self-attention. (batch, seq_length, all_head_size)
+        #   attention_probs: Attention weights calculated in self-attention. (batch, num_heads, seq_length, seq_length)
+        #   value_layer: Value vectors calculated in self-attention. (batch, num_heads, seq_length, head_size)
+        #   dense: Dense layer in self-attention. nn.Linear(all_head_size, all_head_size)
+        #   LayerNorm: nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        #   pre_ln_states: Vectors just before LayerNorm (batch, seq_length, all_head_size)
+
+        with torch.no_grad():
+            # Make transformed vectors f(x) from Value vectors (value_layer) and weight matrix (dense).
+            dense = dense.weight.view(self.all_head_size, self.num_attention_heads,
+                                      self.attention_head_size)  # W^o (768, 768)
+            transformed_layer = torch.einsum('bhsv,dhv->bhsd', value_layer, dense)  # V * W^o  (z=(qk)v)
+
+            # Make weighted vectors αf(x) from transformed vectors (transformed_layer)
+            # and attention weights (attentions):
+            # (batch, num_heads, seq_length, seq_length, all_head_size)
+            weighted_layer = torch.einsum('bhks,bhsd->bhksd', attention_probs,
+                                          transformed_layer)  # attention_probs(Q*K^t) * V * W^o
+            if not globenc_only:
+                weighted_norm = torch.norm(weighted_layer, dim=-1)  # norm of attended tokens representations
+
+            # Sum each weighted vectors αf(x) over all heads:
+            # (batch, seq_length, seq_length, all_head_size)
+            summed_weighted_layer = weighted_layer.sum(dim=1)  # sum over heads
+            if not globenc_only:
+                summed_weighted_norm = torch.norm(summed_weighted_layer, dim=-1)  # norm of ||Σαf(x)||
+
+            """ここからがnew"""
+            # Make residual matrix (batch, seq_length, seq_length, all_head_size)
+            hidden_shape = hidden_states.size()  # (batch, seq_length, all_head_size)
+            device = hidden_states.device
+            residual = torch.einsum('sk,bsd->bskd', torch.eye(hidden_shape[1]).to(device),
+                                    hidden_states)  # diagonal representations (hidden states)
+
+            # Make matrix of summed weighted vector + residual vectors
+            residual_weighted_layer = summed_weighted_layer + residual
+            if not globenc_only:
+                residual_weighted_norm = torch.norm(residual_weighted_layer, dim=-1)  # ||Σαf(x) + x||
+
+            # consider layernorm
+            ln_weight = LayerNorm.weight.data  # gama
+            ln_eps = LayerNorm.eps
+
+            # 実際にLayerNormにかけられるベクトル pre_ln_states の平均・分散を計算
+            mean = pre_ln_states.mean(-1, keepdim=True)  # (batch, seq_len, 1) m(y=Σy_j)
+            var = (pre_ln_states - mean).pow(2).mean(-1, keepdim=True).unsqueeze(dim=2)  # (batch, seq_len, 1, 1)  s(y)
+
+            # attention + residual のサムの中のベクトルごとに平均を計算
+            each_mean = residual_weighted_layer.mean(-1, keepdim=True)  # (batch, seq_len, seq_len, 1) m(y_j)
+
+            # attention + residual のサムの中の各ベクトルから，各平均を引き，標準偏差で割る
+            # (LayerNorm の normalization 部分をサムの中のベクトルごとに実行していることに相当)
+            normalized_layer = torch.div(residual_weighted_layer - each_mean,
+                                         (var + ln_eps) ** (1 / 2))  # (batch, seq_len, seq_len, all_head_size)
+
+            # さらに，LayerNorm の重みでエレメント積を各ベクトルに対して実行
+            post_ln_layer = torch.einsum('bskd,d->bskd', normalized_layer,
+                                         ln_weight)  # (batch, seq_len, seq_len, all_head_size)
+
+            if not globenc_only:
+                post_ln_norm = torch.norm(post_ln_layer, dim=-1)  # (batch, seq_len, seq_len)
+
+                # Attn-N の mixing ratio
+                attn_preserving = torch.diagonal(summed_weighted_layer, dim1=1, dim2=2).permute(0, 2, 1)
+                attn_mixing = torch.sum(summed_weighted_layer, dim=2) - attn_preserving
+                attn_preserving_norm = torch.norm(attn_preserving, dim=-1)
+                attn_mixing_norm = torch.norm(attn_mixing, dim=-1)
+                attn_n_mixing_ratio = attn_mixing_norm / (attn_mixing_norm + attn_preserving_norm)
+
+                # AttnRes-N の mixing ratio
+                before_ln_preserving = torch.diagonal(residual_weighted_layer, dim1=1, dim2=2).permute(0, 2, 1)
+                before_ln_mixing = torch.sum(residual_weighted_layer, dim=2) - before_ln_preserving
+                before_ln_preserving_norm = torch.norm(before_ln_preserving, dim=-1)
+                before_ln_mixing_norm = torch.norm(before_ln_mixing, dim=-1)
+                attnres_n_mixing_ratio = before_ln_mixing_norm / (before_ln_mixing_norm + before_ln_preserving_norm)
+
+                # AttnResLn-N の mixing ratio
+                post_ln_preserving = torch.diagonal(post_ln_layer, dim1=1, dim2=2).permute(0, 2, 1)
+                post_ln_mixing = torch.sum(post_ln_layer, dim=2) - post_ln_preserving
+                post_ln_preserving_norm = torch.norm(post_ln_preserving, dim=-1)
+                post_ln_mixing_norm = torch.norm(post_ln_mixing, dim=-1)
+                attnresln_n_mixing_ratio = post_ln_mixing_norm / (post_ln_mixing_norm + post_ln_preserving_norm)
+
+                outputs = (weighted_norm,  # ||αf(x)||
+                           summed_weighted_norm,  # ||Σαf(x)||
+                           residual_weighted_norm,  # ||Σαf(x) + x||
+                           post_ln_norm,  # Norm of vectors after LayerNorm
+                           post_ln_layer,
+                           attn_n_mixing_ratio,  # Mixing ratio for Attn-N
+                           attnres_n_mixing_ratio,  # Mixing ratio for AttnRes-N
+                           attnresln_n_mixing_ratio,  # Mixing ratio for AttnResLn-N
+                           )
+
+                return outputs
+
+            else:
+                return (
+                    post_ln_layer,
+                )
 
 class ViTAttention(nn.Module):
     def __init__(self, config: ViTConfig) -> None:
@@ -290,8 +405,11 @@ class ViTAttention(nn.Module):
         hidden_states: torch.Tensor,
         head_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
+        output_norms=False,
+        output_globenc=False,
     ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
-        self_outputs = self.attention(hidden_states, head_mask, output_attentions)
+        self_outputs = self.attention(hidden_states, head_mask, output_attentions,
+                                      output_norms=output_norms, output_globenc=output_globenc)
 
         attention_output = self.output(self_outputs[0], hidden_states)
 
@@ -348,11 +466,15 @@ class ViTLayer(nn.Module):
         hidden_states: torch.Tensor,
         head_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
+        output_norms: Optional[bool] = False,
+        output_globenc: Optional[bool] = False,
     ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
         self_attention_outputs = self.attention(
             self.layernorm_before(hidden_states),  # in ViT, layernorm is applied before self-attention
             head_mask,
             output_attentions=output_attentions,
+            output_norms=output_norms,
+            output_globenc=output_globenc,
         )
         attention_output = self_attention_outputs[0]
         outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
@@ -386,6 +508,8 @@ class ViTEncoder(nn.Module):
         output_attentions: bool = False,
         output_hidden_states: bool = False,
         return_dict: bool = True,
+        output_norms: Optional[bool] = False,
+        output_globenc: Optional[bool] = None,
     ) -> Union[tuple, BaseModelOutput]:
         all_hidden_states = () if output_hidden_states else None
         all_self_attentions = () if output_attentions else None
@@ -404,7 +528,8 @@ class ViTEncoder(nn.Module):
                     output_attentions,
                 )
             else:
-                layer_outputs = layer_module(hidden_states, layer_head_mask, output_attentions)
+                layer_outputs = layer_module(hidden_states, layer_head_mask, output_attentions,
+                                             output_norms, output_globenc)
 
             hidden_states = layer_outputs[0]
 
@@ -544,6 +669,8 @@ class ViTModel(ViTPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         interpolate_pos_encoding: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        output_norms: Optional[bool] = None,
+        output_globenc : Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPooling]:
         r"""
         bool_masked_pos (`torch.BoolTensor` of shape `(batch_size, num_patches)`, *optional*):
@@ -580,6 +707,8 @@ class ViTModel(ViTPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            output_norms=output_norms,
+            output_globenc=output_globenc,
         )
         sequence_output = encoder_outputs[0]
         sequence_output = self.layernorm(sequence_output)
@@ -782,6 +911,8 @@ class ViTForImageClassification(ViTPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         interpolate_pos_encoding: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        output_norms: Optional[bool] = False,
+        output_globenc: Optional[bool] = False,
     ) -> Union[tuple, ImageClassifierOutput]:
         r"""
         labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
