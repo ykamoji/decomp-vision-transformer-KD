@@ -1,7 +1,7 @@
 from models_utils import ViTForImageClassification, DeiTForImageClassificationWithTeacher
 from transformers import ViTImageProcessor, DeiTImageProcessor
 from transformers.image_transforms import resize
-from transformers.image_utils import  PILImageResampling
+from transformers.image_utils import PILImageResampling
 import matplotlib.patches as pat
 import torch
 import matplotlib.pyplot as plt
