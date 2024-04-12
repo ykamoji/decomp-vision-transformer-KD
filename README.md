@@ -21,7 +21,6 @@ p-tqdm==1.2
 scipy==1.11.4
 networkx==3.1
 ```
-<hr>
 
 To start the fine-tuning and/or distillation actions, run the below command
 
