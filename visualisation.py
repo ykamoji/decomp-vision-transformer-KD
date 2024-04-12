@@ -1,8 +1,7 @@
-from models_utils import ViTForImageClassification
-from transformers import ViTImageProcessor
+from models_utils import ViTForImageClassification, DeiTForImageClassificationWithTeacher
+from transformers import ViTImageProcessor, DeiTImageProcessor
 from transformers.image_transforms import resize
 from transformers.image_utils import  PILImageResampling
-# from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import matplotlib.patches as pat
 import torch
 import matplotlib.pyplot as plt
@@ -19,17 +18,27 @@ warnings.filterwarnings('ignore')
 def visualize(Args):
 
     outputPath = Args.Visualization.Output
+    showImages = Args.Visualization.Show
+    saveImages = Args.Visualization.Save
 
     images = glob.glob("images/*.JPEG")
     Device = Args.Visualization.Model.Device
 
     # model_path = get_model_path('FineTuned', Args)
-    model = ViTForImageClassification.from_pretrained(Args.Visualization.Model.Name,
-                                                      cache_dir=Args.Visualization.Model.CachePath)
+    model_name = Args.Visualization.Model.Name
+    if 'distilled' in model_name:
+        classifier = DeiTForImageClassificationWithTeacher
+        feature_extractor = DeiTImageProcessor
+    else:
+        classifier = ViTForImageClassification
+        feature_extractor = ViTImageProcessor
+
+    model = classifier.from_pretrained(model_name, cache_dir=Args.Visualization.Model.CachePath)
+
+    processor = feature_extractor.from_pretrained(model_name, cache_dir=Args.Visualization.Model.CachePath)
+
     model.eval()
     model.to(Device)
-    processor = ViTImageProcessor.from_pretrained(Args.Visualization.Model.Name,
-                                                  cache_dir=Args.Visualization.Model.CachePath)
 
     for im in images:
 
@@ -47,8 +56,10 @@ def visualize(Args):
         fig = plt.figure()
         plt.imshow(img_resized_grid)
         plt.axis('off')
-        plt.savefig(outputPath+f"{label}_1_grid")
-        # plt.show()
+        if  saveImages:
+            plt.savefig(outputPath+f"{label}_1_grid")
+        if showImages:
+            plt.show()
         plt.close(fig)
 
         inputs = processor(images=image, return_tensors="pt")
@@ -107,9 +118,10 @@ def visualize(Args):
         # plt.yticks(fontsize=9)
         plt.yticks([])
         plt.gcf().subplots_adjust(bottom=0.2)
-        plt.savefig(outputPath + f"{label}_3_heatmap")
-        # plt.close(fig)
-        # plt.show()
+        if saveImages:
+            plt.savefig(outputPath + f"{label}_3_heatmap")
+        if showImages:
+            plt.show()
 
         # print(all_patches[0])
 
@@ -137,5 +149,7 @@ def visualize(Args):
 
         plt.imshow(img_resized_final)
         plt.axis('off')
-        plt.savefig(outputPath + f"{label}_2_attributes")
-        # plt.show()
+        if saveImages:
+            plt.savefig(outputPath + f"{label}_2_attributes")
+        if showImages:
+            plt.show()
