@@ -11,7 +11,7 @@ Common:
     Test: '' # Set <>% or <> exact number of batches to test
 
 FineTuning:
-  Action: False
+  Action: True
   Model:
     Name: google/vit-base-patch16-224-in21k
     CachePath : model/
@@ -51,3 +51,4 @@ Visualization:
     OutputPath: tuned-model/
     Index: -1
     Device: 'mps'
+  Output: AttributionOutputs/
