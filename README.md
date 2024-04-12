@@ -21,30 +21,41 @@ p-tqdm==1.2
 scipy==1.11.4
 networkx==3.1
 ```
+<hr>
 
 To start the fine-tuning and/or distillation actions, run the below command
+
+<hr>
 
 ```bash 
 python3 main.py 
 ```
+
+<hr>
 
 ### Dataset configuration
 - Update the Common.DataSet.Path manually or add environment variable ${DATASET_PATH}
 - For cifar10, Common.DataSet.Label : label
 - For cifar100, Common.DataSet.Label : fine_label  or coarse_label
 
+<hr>
+
 ### Fine-Tuning configuration
 -  FineTuning.Action: True
 
+<hr>
 
 ### Distillation configuration
 -  Distillation.Action: True
 - To use models with distillation token, set UseDistTokens: True
 - To use KL loss, set DistillationType: soft otherwise hard
 
-## Attribution visualization configuration
+<hr>
+
+### Attribution visualization configuration
 - Visualization.Action: True
 
+<hr>
 
 ### Results structure
 
