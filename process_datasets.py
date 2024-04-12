@@ -32,12 +32,17 @@ def build_metrics(metric_args):
 
 def build_dataset(is_train, Args, show_details=True):
     DataSet = Args.Common.DataSet
-    step = Args.FineTuning if Args.FineTuning.Action else Args.Distillation
-
-    if 'deit' in step.Model.Name:
-        feature_extractor = DeiTImageProcessor.from_pretrained(step.Model.Name, cache_dir=step.Model.CachePath)
+    if Args.FineTuning.Action:
+        Model = Args.FineTuning.Model
+    elif Args.Distillation.Action:
+        Model = Args.Distillation.Model
     else:
-        feature_extractor = ViTImageProcessor.from_pretrained(step.Model.Name, cache_dir=step.Model.CachePath)
+        Model = Args.Visualization.Model
+
+    if 'deit' in Model.Name:
+        feature_extractor = DeiTImageProcessor.from_pretrained(Model.Name, cache_dir=Model.CachePath)
+    else:
+        feature_extractor = ViTImageProcessor.from_pretrained(Model.Name, cache_dir=Model.CachePath)
     label_key = DataSet.Label
 
     def preprocess(batchImage):
@@ -66,6 +71,7 @@ def build_dataset(is_train, Args, show_details=True):
 
     if show_details:
         print(f"\nTesting info:{dataset_test}")
+        print(f"\nNumber of labels = {num_labels}, {dataset_test.features[label_key]}")
 
     if is_train:
         return num_labels, prepared_train, prepared_test

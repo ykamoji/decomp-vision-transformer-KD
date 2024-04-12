@@ -4,7 +4,7 @@ import os
 def prepare_output_path(step, Args):
     root = Args.Common.Results + step + '/'
     model_name = ''
-    if step == 'FineTuned' or step == 'Visualize':
+    if step == 'FineTuned':
         model_name = Args.FineTuning.Model.Name
     elif step == 'Distilled':
         model_name = Args.Distillation.StudentModel.Name
@@ -41,8 +41,13 @@ def check_model_path(root, model, dataset, index):
 
 def get_model_path(step, Args):
     root = Args.Common.Results + step + '/'
-    model_path = check_model_path(root, Args.Distillation.Model.Name, Args.Common.DataSet.Name,
-                                  Args.Distillation.Model.Index)
+
+    if Args.Distillation.Action:
+        Model = Args.Distillation.Model
+    else:
+        Model = Args.Visualization.Model
+
+    model_path = check_model_path(root, Model.Name, Args.Common.DataSet.Name, Model.Index)
     model_path += '/' + Args.Distillation.Model.OutputPath
     return model_path
 

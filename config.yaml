@@ -11,7 +11,7 @@ Common:
     Test: '' # Set <>% or <> exact number of batches to test
 
 FineTuning:
-  Action: True
+  Action: False
   Model:
     Name: google/vit-base-patch16-224-in21k
     CachePath : model/
@@ -42,3 +42,15 @@ Distillation:
     WeightDecay: 0.0
   UseDistTokens: True
   DistillationType: soft # Set soft for KL divergence loss using probability or hard for cross entropy loss with logits
+
+Visualization:
+  Action: False
+  Model:
+    Name: google/vit-base-patch16-224
+    CachePath: model/
+    OutputPath: tuned-model/
+    Index: -1
+    Device: 'cpu' # update to cuda or mps for GPU support
+  Output: AttributionOutputs/
+  Show: False
+  Save: True
