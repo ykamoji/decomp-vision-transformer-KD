@@ -55,7 +55,7 @@ python3 main.py
 ### Attribution visualization configuration
 - Visualization.Action: True
 
-<hr>
+<hr style="height: 0.5px">
 
 ### Results structure
 
