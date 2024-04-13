@@ -55,8 +55,8 @@ def visualize(Args):
         fig = plt.figure()
         plt.imshow(img_resized_grid)
         plt.axis('off')
-        if  saveImages:
-            plt.savefig(outputPath+f"{label}_1_grid")
+        if saveImages:
+            plt.savefig(outputPath + f"{label}_1_grid")
         if showImages:
             plt.show()
         plt.close(fig)
@@ -64,7 +64,7 @@ def visualize(Args):
         inputs = processor(images=image, return_tensors="pt")
         inputs.to(Device)
         outputs = model(**inputs, output_attentions=True, output_hidden_states=True, output_norms=True,
-                              output_globenc=True)
+                        output_globenc=True)
         logits = outputs.logits
         predicted_class_idx = logits.argmax(-1).item()
         print(f"Actual: {label.ljust(10, ' ')} Predicted: {model.config.id2label[predicted_class_idx]}")
@@ -72,7 +72,7 @@ def visualize(Args):
         patches = process_attribution(outputs.attributions, factor)
 
         plt.figure(figsize=(7, 7))
-        df = pd.DataFrame(patches, columns=np.arange(1, patches.shape[1]+1), index=range(len(patches), 0, -1))
+        df = pd.DataFrame(patches, columns=np.arange(1, patches.shape[1] + 1), index=range(len(patches), 0, -1))
         ax = sns.heatmap(df, cmap="Reds", square=True)
         bottom, top = ax.get_ylim()
         ax.set_ylim(bottom + 0.5, top - 0.5)
@@ -105,9 +105,10 @@ def visualize(Args):
 
         for i in range(factor):
             for j in range(factor):
-                index = x[i,j]*factor + y[i,j]
+                index = x[i, j] * factor + y[i, j]
                 if attribute_score_per_patch[index] == 1:
-                    rect = pat.Rectangle((y[i,j] * grid_size, x[i,j] * grid_size), grid_size - 1, grid_size -1, linewidth=1,
+                    rect = pat.Rectangle((y[i, j] * grid_size, x[i, j] * grid_size), grid_size - 1, grid_size - 1,
+                                         linewidth=1,
                                          edgecolor='r', facecolor='none')
 
                     ax.add_patch(rect)

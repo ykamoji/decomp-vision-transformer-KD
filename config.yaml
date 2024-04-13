@@ -42,6 +42,7 @@ Distillation:
     WeightDecay: 0.0
   UseDistTokens: True
   DistillationType: soft # Set soft for KL divergence loss using probability or hard for cross entropy loss with logits
+  UseAttributionLoss: True
 
 Visualization:
   Action: False
@@ -53,4 +54,4 @@ Visualization:
     Device: 'cpu' # update to cuda or mps for GPU support
   Output: AttributionOutputs/
   Show: False
-  Save: True
+  Save: False

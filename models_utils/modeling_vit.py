@@ -578,9 +578,11 @@ class ViTEncoder(nn.Module):
 
                 norms_outputs = norms_outputs + (norm_output,)
 
-            previous_value_layer = layer_outputs[2]
-            previous_pre_ln_states = layer_outputs[3]
-            previous_hidden_input = hidden_states
+            if output_norms or output_globenc:
+                previous_value_layer = layer_outputs[2]
+                previous_pre_ln_states = layer_outputs[3]
+                previous_hidden_input = hidden_states
+
             hidden_states = layer_outputs[0]
 
             if output_attentions:
@@ -736,6 +738,7 @@ class ViTModel(ViTPreTrainedModel):
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        final_norms = ()
 
         if pixel_values is None:
             raise ValueError("You have to specify pixel_values")
@@ -768,16 +771,17 @@ class ViTModel(ViTPreTrainedModel):
         sequence_output = encoder_outputs[0]
         sequence_output = self.layernorm(sequence_output)
 
-        hidden_state = encoder_outputs.hidden_states[-2]
-        attention = encoder_outputs.attentions[-1]
-        last_value_layer = encoder_outputs.last_value_layer
-        dense = self.encoder.layer[-1].attention.output.dense
-        layerNorm1 = self.encoder.layer[-1].layernorm_after
-        norm_outputs = self.norm.perform_attribution(hidden_state, attention, last_value_layer, dense, layerNorm1,
-                                                     encoder_outputs.hidden_states[-1], sequence_output,
-                                                     self.layernorm, output_norms)
+        if output_norms or output_globenc:
+            hidden_state = encoder_outputs.hidden_states[-2]
+            attention = encoder_outputs.attentions[-1]
+            last_value_layer = encoder_outputs.last_value_layer
+            dense = self.encoder.layer[-1].attention.output.dense
+            layerNorm1 = self.encoder.layer[-1].layernorm_after
+            norm_outputs = self.norm.perform_attribution(hidden_state, attention, last_value_layer, dense, layerNorm1,
+                                                         encoder_outputs.hidden_states[-1], sequence_output,
+                                                         self.layernorm, output_norms)
 
-        final_norms = encoder_outputs.norms + (norm_outputs,)
+            final_norms = encoder_outputs.norms + (norm_outputs,)
 
         pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
 

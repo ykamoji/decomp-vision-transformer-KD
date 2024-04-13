@@ -1,5 +1,6 @@
 from process_datasets import build_dataset, build_metrics, collate_fn
 from transformers import TrainingArguments
+from transformers import DeiTConfig, ViTConfig
 from models_utils import ViTForImageClassification, DeiTForImageClassificationWithTeacher
 from transformers.training_args import OptimizerNames
 from loss import DistillationTrainer
@@ -8,7 +9,7 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-IGNORE_KEYS = ['cls_logits', 'distillation_logits', 'hidden_states', 'attentions']
+IGNORE_KEYS = ['cls_logits', 'distillation_logits', 'hidden_states', 'attentions', 'attributions']
 
 
 def get_distillation_training_args(output_path, hyperparameters):
@@ -46,26 +47,26 @@ def run_distillation(Args):
 
     teacher_model = ViTForImageClassification.from_pretrained(fine_tuned_model_path)
 
+
     # print(teacher_model)
 
     ## TODO:: Extend the student model to use linear transformation for the layer at the end.
     ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/transformer/modeling.py#L1119
 
-    num_labels, training_data, testing_data = build_dataset(True, Args, show_details=False)
+    _, training_data, testing_data = build_dataset(True, Args, show_details=False)
 
     compute_metrics = build_metrics(Args.Common.Metrics)
 
+    student_config = None
     if Args.Distillation.UseDistTokens:
         classificationMode = DeiTForImageClassificationWithTeacher
     else:
         classificationMode = ViTForImageClassification
 
     student_model = classificationMode.from_pretrained(Args.Distillation.StudentModel.Name,
-                                                       num_labels=num_labels,
+                                                       num_labels=teacher_model.config.num_labels,
                                                        cache_dir=Args.Distillation.StudentModel.CachePath,
                                                        ignore_mismatched_sizes=True)
-
-    # print(classificationMode)
 
     output_path = prepare_output_path('Distilled', Args)
 
@@ -82,7 +83,8 @@ def run_distillation(Args):
         temperature=5,
         alpha=0.5,
         distillation_token=Args.Distillation.UseDistTokens,
-        distillation_type=Args.Distillation.DistillationType
+        distillation_type=Args.Distillation.DistillationType,
+        include_attribution_loss=Args.Distillation.UseAttributionLoss
     )
 
     train_results = distillation_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)

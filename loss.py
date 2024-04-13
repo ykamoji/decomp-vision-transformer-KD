@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class DistillationTrainer(Trainer):
     def __init__(self,
                  teacher_model=None,
@@ -13,6 +12,7 @@ class DistillationTrainer(Trainer):
                  distillation_token=False,
                  student_loss_fn=F.cross_entropy,
                  distillation_type='soft',
+                 include_attribution_loss=False,
                  *args, **kwargs):
         super().__init__(model=student_model, *args, **kwargs)
         self.teacher = teacher_model
@@ -35,6 +35,9 @@ class DistillationTrainer(Trainer):
         self.student_loss_fn = student_loss_fn
         self.distillation_type = distillation_type
 
+        self.include_attribution_loss = include_attribution_loss
+        self.attribution_loss_fn = nn.MSELoss()
+
         self.printed = False
 
     def _distillation_loss(self, teacher_output, student_output):
@@ -48,7 +51,8 @@ class DistillationTrainer(Trainer):
             soft_teacher = F.log_softmax(teacher_output.logits / self.temperature, dim=-1)
             soft_student = F.log_softmax(student_tokens / self.temperature, dim=-1)
 
-            return self.distillation_loss_fun(soft_student, soft_teacher) * (self.temperature ** 2) / student_tokens.numel()
+            return self.distillation_loss_fun(soft_student, soft_teacher) * (
+                        self.temperature ** 2) / student_tokens.numel()
 
         elif self.distillation_type == 'hard':
 
@@ -73,21 +77,47 @@ class DistillationTrainer(Trainer):
     def _attn_loss(self, teacher_attn, student_attn):
         return torch.zeros(1)
 
+    def _process_attribution(self, attr):
+        num_layers = len(attr)
+        attribution = torch.stack([attr[i][4] for i in range(num_layers)]).squeeze()
+        if attribution.ndim == 3: attribution = attribution.unsqueeze(0)
+        attribution = attribution / attribution.max(dim=3)[0].unsqueeze(3)
+        return attribution
+
+    def _attribution_loss(self, teacher_attr, student_attr):
+        teacher_attr = self._process_attribution(teacher_attr)
+        student_attr = self._process_attribution(student_attr)
+
+        teacher_attr = teacher_attr[:, :, 0, :]
+        student_attr = student_attr[:, :, 0, :]
+        if self.distillation_token:
+            # student_attr_without_dist = torch.empty_like(student_attr)[:,:,:-1,:-1]
+            # student_attr_without_dist[:,:,0,:] = student_attr[:,:,0,1:]
+            # student_attr_without_dist[:,:,1:,:] = student_attr[:,:,2:,1:]
+            # student_attr = student_attr_without_dist
+            student_attr = student_attr[:,:, 1:]
+
+        return self.attribution_loss_fn(teacher_attr, student_attr)
+
     def _print_layer_shapes(self, teacher_output, student_output):
 
         if not self.printed:
 
-            for model_name, logits, hidden_layers, attn_layers in zip(["Teacher", "Student"],
+            for model_name, logits, hidden_layers, attn_layers, attr_layers in zip(["Teacher", "Student"],
                                                                       [teacher_output.logits,
                                                                        student_output.logits],
                                                                       [teacher_output.hidden_states,
                                                                        student_output.hidden_states],
                                                                       [teacher_output.attentions,
-                                                                       student_output.attentions]):
+                                                                       student_output.attentions],
+                                                                      [teacher_output.attributions,
+                                                                       student_output.attributions]):
                 print(f"\n{model_name}:")
                 print(f"Logits Shape = {logits.shape}")
                 print(f"Hidden Layers:\nDepth = {len(hidden_layers)}\nShape = {hidden_layers[0].shape}")
                 print(f"Attention Layers:\nDepth = {len(attn_layers)}\nShape = {attn_layers[0].shape}")
+                if self.include_attribution_loss:
+                    print(f"Attributions Layers:\nDepth = {len(attr_layers)}\nShape = {attr_layers[0][4].shape}")
 
             print("\n")
 
@@ -99,21 +129,32 @@ class DistillationTrainer(Trainer):
         if self.distillation_token:
             student_inputs = {'pixel_values': inputs['pixel_values']}
 
-        student_output = self.student(**student_inputs, output_hidden_states=True, output_attentions=True)
+        kwargs = {"output_hidden_states":True, "output_attentions":True}
+
+        if self.is_in_train and self.include_attribution_loss:
+            kwargs = {**kwargs,**{"output_norms": True, "output_globenc": True}}
+
+        student_output = self.student(**student_inputs, **kwargs)
+
+        student_loss = self._student_loss(student_output, inputs['labels'])
+
+        if not self.is_in_train:
+            return (student_loss, student_output) if return_outputs else student_loss
 
         with torch.no_grad():
-            teacher_output = self.teacher(**inputs, output_hidden_states=True, output_attentions=True)
+            teacher_output = self.teacher(**inputs, **kwargs)
 
         self._print_layer_shapes(teacher_output, student_output)
 
         distillation_loss = self._distillation_loss(teacher_output, student_output)
-
-        student_loss = self._student_loss(student_output, inputs['labels'])
 
         loss = (1. - self.alpha) * student_loss + self.alpha * distillation_loss
 
         # loss += self._attn_loss(teacher_output.attentions, student_output.attentions)
 
         # loss += self._layer_loss(teacher_output.hidden_states, student_output.hidden_states)
+
+        if self.include_attribution_loss:
+            loss += self._attribution_loss(teacher_output.attributions, student_output.attributions)
 
         return (loss, student_output) if return_outputs else loss
