@@ -121,7 +121,7 @@ def visualize(Args):
                 if score >= threshold_score:
                     if score == 1:
                         edgecolor = 'blue'
-                        alpha = 0.3
+                        alpha = 0.2
                     elif score == 2:
                         edgecolor = 'yellow'
                         alpha = 0.4

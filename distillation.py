@@ -1,6 +1,5 @@
 from process_datasets import build_dataset, build_metrics, collate_fn
 from transformers import TrainingArguments
-from transformers import DeiTConfig, ViTConfig
 from models_utils import ViTForImageClassification, DeiTForImageClassificationWithTeacher
 from transformers.training_args import OptimizerNames
 from loss import DistillationTrainer

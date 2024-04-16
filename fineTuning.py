@@ -7,6 +7,7 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
+IGNORE_KEYS = ['cls_logits', 'distillation_logits', 'hidden_states', 'attentions', 'attributions']
 
 def get_fine_tuning_trainer_args(output_path, hyperparameters):
     return TrainingArguments(
@@ -63,14 +64,14 @@ def fine_tuning(Args):
         eval_dataset=testing_data,
     )
 
-    train_results = fine_tune_trainer.train()
+    train_results = fine_tune_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)
 
     fine_tune_trainer.save_model(output_dir=output_path + Args.FineTuning.Model.OutputPath)
     fine_tune_trainer.log_metrics("train", train_results.metrics)
     fine_tune_trainer.save_metrics("train", train_results.metrics)
     fine_tune_trainer.save_state()
 
-    metrics = fine_tune_trainer.evaluate(testing_data)
+    metrics = fine_tune_trainer.evaluate(testing_data, ignore_keys=IGNORE_KEYS)
     fine_tune_trainer.log_metrics("eval", metrics)
     fine_tune_trainer.save_metrics("eval", metrics)
 
