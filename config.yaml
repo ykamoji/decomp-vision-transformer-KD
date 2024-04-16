@@ -43,15 +43,17 @@ Distillation:
   UseDistTokens: True
   DistillationType: soft # Set soft for KL divergence loss using probability or hard for cross entropy loss with logits
   UseAttributionLoss: True
+  UseAttentionLoss: False
+  UseHiddenLoss : False
 
 Visualization:
-  Action: True
+  Action: False
   Model:
     Name: google/vit-base-patch16-224
     CachePath: model/
     OutputPath: tuned-model/
     Index: -1
-    Device: 'mps' # update to cuda or mps for GPU support
+    Device: 'cpu' # update to cuda or mps for GPU support
   Input: images
   Output: attributionOutputs/
   Show: False

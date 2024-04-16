@@ -12,7 +12,9 @@ class DistillationTrainer(Trainer):
                  distillation_token=False,
                  student_loss_fn=F.cross_entropy,
                  distillation_type='soft',
-                 include_attribution_loss=False,
+                 use_attribution_loss=False,
+                 use_attention_loss=False,
+                 use_hidden_loss=False,
                  *args, **kwargs):
         super().__init__(model=student_model, *args, **kwargs)
         self.teacher = teacher_model
@@ -35,7 +37,9 @@ class DistillationTrainer(Trainer):
         self.student_loss_fn = student_loss_fn
         self.distillation_type = distillation_type
 
-        self.include_attribution_loss = include_attribution_loss
+        self.use_attribution_loss = use_attribution_loss
+        self.use_attention_loss = use_attention_loss
+        self.use_hidden_loss = use_hidden_loss
         self.attribution_loss_fn = nn.MSELoss()
 
         self.printed = False
@@ -69,13 +73,13 @@ class DistillationTrainer(Trainer):
     ##  For distillation with distillation tokens, remove the distil token from the tensor
     ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/task_distill.py#L935
     def _layer_loss(self, teacher_layers, student_layers):
-        return torch.zeros(1)
+        return 0
 
     ## TODO: MSE loss for the attn
     ##  For distillation with distillation tokens, remove the distil token from the tensor
     ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/task_distill.py#L935
     def _attn_loss(self, teacher_attn, student_attn):
-        return torch.zeros(1)
+        return 0
 
     def _process_attribution(self, attr):
         num_layers = len(attr)
@@ -114,9 +118,14 @@ class DistillationTrainer(Trainer):
                                                                        student_output.attributions]):
                 print(f"\n{model_name}:")
                 print(f"Logits Shape = {logits.shape}")
-                print(f"Hidden Layers:\nDepth = {len(hidden_layers)}\nShape = {hidden_layers[0].shape}")
-                print(f"Attention Layers:\nDepth = {len(attn_layers)}\nShape = {attn_layers[0].shape}")
-                if self.include_attribution_loss:
+
+                if self.use_hidden_loss:
+                    print(f"Hidden Layers:\nDepth = {len(hidden_layers)}\nShape = {hidden_layers[0].shape}")
+
+                if self.use_attention_loss:
+                    print(f"Attention Layers:\nDepth = {len(attn_layers)}\nShape = {attn_layers[0].shape}")
+
+                if self.use_attribution_loss:
                     print(f"Attributions Layers:\nDepth = {len(attr_layers)}\nShape = {attr_layers[0][4].shape}")
 
             print("\n")
@@ -126,15 +135,19 @@ class DistillationTrainer(Trainer):
     def compute_loss(self, student, inputs, return_outputs=False):
 
         student_inputs = inputs
+
         if self.distillation_token:
             student_inputs = {'pixel_values': inputs['pixel_values']}
 
-        kwargs = {"output_hidden_states":True, "output_attentions":True}
+        kwargs = {}
+        s_kwargs = {}
+        if self.is_in_train:
+            kwargs = {**kwargs,**{"output_hidden_states":True, "output_attentions": True,"output_norms": True,
+                                  "output_globenc": True}}
 
-        if self.is_in_train and self.include_attribution_loss:
-            kwargs = {**kwargs,**{"output_norms": True, "output_globenc": True}}
+            s_kwargs = {**kwargs, **{"is_student":True}}
 
-        student_output = self.student(**student_inputs, **kwargs)
+        student_output = self.student(**student_inputs, **s_kwargs)
 
         student_loss = self._student_loss(student_output, inputs['labels'])
 
@@ -150,11 +163,13 @@ class DistillationTrainer(Trainer):
 
         loss = (1. - self.alpha) * student_loss + self.alpha * distillation_loss
 
-        # loss += self._attn_loss(teacher_output.attentions, student_output.attentions)
+        if self.use_attention_loss:
+            loss += self._attn_loss(teacher_output.attentions, student_output.attentions)
 
-        # loss += self._layer_loss(teacher_output.hidden_states, student_output.hidden_states)
+        if self.use_hidden_loss:
+            loss += self._layer_loss(teacher_output.hidden_states, student_output.hidden_states)
 
-        if self.include_attribution_loss:
+        if self.use_attribution_loss:
             loss += self._attribution_loss(teacher_output.attributions, student_output.attributions)
 
         return (loss, student_output) if return_outputs else loss

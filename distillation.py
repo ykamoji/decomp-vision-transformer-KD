@@ -84,7 +84,7 @@ def run_distillation(Args):
         alpha=0.5,
         distillation_token=Args.Distillation.UseDistTokens,
         distillation_type=Args.Distillation.DistillationType,
-        include_attribution_loss=Args.Distillation.UseAttributionLoss
+        use_attribution_loss=Args.Distillation.UseAttributionLoss
     )
 
     train_results = distillation_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)

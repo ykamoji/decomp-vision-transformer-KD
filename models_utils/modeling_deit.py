@@ -892,6 +892,10 @@ class DeiTForImageClassification(DeiTPreTrainedModel):
         # Classifier head
         self.classifier = nn.Linear(config.hidden_size, config.num_labels) if config.num_labels > 0 else nn.Identity()
 
+        atten_size = self.deit.get_input_embeddings().num_patches
+
+        self.attribution_classifier = nn.Linear(atten_size + 1, atten_size + 1)
+
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -907,6 +911,7 @@ class DeiTForImageClassification(DeiTPreTrainedModel):
         return_dict: Optional[bool] = None,
         output_norms: Optional[bool] = False,
         output_globenc: Optional[bool] = False,
+        is_student: Optional[bool] = False,
     ) -> Union[tuple, ImageClassifierOutput]:
         r"""
         labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
@@ -985,12 +990,20 @@ class DeiTForImageClassification(DeiTPreTrainedModel):
             output = (logits,) + outputs[1:]
             return ((loss,) + output) if loss is not None else output
 
+        transformed_attribution = ()
+        if is_student:
+            for layer in range(len(outputs.attributions)):
+                trans_attr = self.attribution_classifier(outputs.attributions[layer][4])
+                transformed_attribution = transformed_attribution \
+                                          + ((outputs.attributions[layer][:4] + (trans_attr,)
+                                              + outputs.attributions[layer][5:]),)
+
         return ImageClassifierOutput(
             loss=loss,
             logits=logits,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
-            attributions=outputs.attributions
+            attributions=outputs.attributions if not transformed_attribution else transformed_attribution
         )
 
 
@@ -1053,6 +1066,10 @@ class DeiTForImageClassificationWithTeacher(DeiTPreTrainedModel):
             nn.Linear(config.hidden_size, config.num_labels) if config.num_labels > 0 else nn.Identity()
         )
 
+        atten_size = self.deit.get_input_embeddings().num_patches
+
+        self.attribution_classifier = nn.Linear(atten_size + 2, atten_size + 2)
+
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -1072,6 +1089,7 @@ class DeiTForImageClassificationWithTeacher(DeiTPreTrainedModel):
         return_dict: Optional[bool] = None,
         output_norms: Optional[bool] = False,
         output_globenc: Optional[bool] = False,
+        is_student: Optional[bool] = False,
     ) -> Union[tuple, DeiTForImageClassificationWithTeacherOutput]:
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -1093,6 +1111,14 @@ class DeiTForImageClassificationWithTeacher(DeiTPreTrainedModel):
         # during inference, return the average of both classifier predictions
         logits = (cls_logits + distillation_logits) / 2
 
+        transformed_attribution = ()
+        if is_student:
+            for layer in range(len(outputs.attributions)):
+                trans_attr = self.attribution_classifier(outputs.attributions[layer][4])
+                transformed_attribution = transformed_attribution \
+                                          + ((outputs.attributions[layer][:4] + (trans_attr,)
+                                              + outputs.attributions[layer][5:]),)
+
         if not return_dict:
             output = (logits, cls_logits, distillation_logits) + outputs[1:]
             return output
@@ -1103,5 +1129,5 @@ class DeiTForImageClassificationWithTeacher(DeiTPreTrainedModel):
             distillation_logits=distillation_logits,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
-            attributions=outputs.attributions
+            attributions=outputs.attributions if not transformed_attribution else transformed_attribution
         )

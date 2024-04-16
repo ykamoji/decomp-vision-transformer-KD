@@ -964,6 +964,10 @@ class ViTForImageClassification(ViTPreTrainedModel):
         # Classifier head
         self.classifier = nn.Linear(config.hidden_size, config.num_labels) if config.num_labels > 0 else nn.Identity()
 
+        atten_size = self.vit.get_input_embeddings().num_patches
+
+        self.attribution_classifier = nn.Linear(atten_size + 1, atten_size + 1)
+
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -985,6 +989,7 @@ class ViTForImageClassification(ViTPreTrainedModel):
             return_dict: Optional[bool] = None,
             output_norms: Optional[bool] = False,
             output_globenc: Optional[bool] = False,
+            is_student: Optional[bool] = False,
     ) -> Union[tuple, ImageClassifierOutput]:
         r"""
         labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
@@ -1038,10 +1043,18 @@ class ViTForImageClassification(ViTPreTrainedModel):
             output = (logits,) + outputs[1:]
             return ((loss,) + output) if loss is not None else output
 
+        transformed_attribution = ()
+        if is_student:
+            for layer in range(len(outputs.attributions)):
+                trans_attr = self.attribution_classifier(outputs.attributions[layer][4])
+                transformed_attribution = transformed_attribution \
+                                          + ((outputs.attributions[layer][:4] + (trans_attr,)
+                                              + outputs.attributions[layer][5:]),)
+
         return ImageClassifierOutput(
             loss=loss,
             logits=logits,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
-            attributions=outputs.attributions
+            attributions=outputs.attributions if not transformed_attribution else transformed_attribution
         )
