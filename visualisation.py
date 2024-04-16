@@ -14,13 +14,13 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-def visualize(Args):
 
+def visualize(Args):
     outputPath = Args.Visualization.Output
     showImages = Args.Visualization.Show
     saveImages = Args.Visualization.Save
 
-    images = glob.glob("Images/*.JPEG")
+    images = glob.glob(f"{Args.Visualization.Input}/*.JPEG")
     Device = Args.Visualization.Model.Device
 
     # model_path = get_model_path('FineTuned', Args)
@@ -39,7 +39,7 @@ def visualize(Args):
     model.eval()
     model.to(Device)
 
-    for im in images[:3]:
+    for im in images:
 
         label = im.split('_')[1].split('.')[0]
         image = Image.open(im)
@@ -91,10 +91,21 @@ def visualize(Args):
         # print(patches[0])
 
         mean = np.mean(patches[0])
+        std = np.std(patches[0])
 
-        attribute_score_per_patch = [1 if patches[0, i] > mean else 0 for i in range(patches.shape[1])]
+        attribute_score_per_patch = [
+            5
+            if patches[0, i] > mean + 2 * std else 4
+            if patches[0, i] > mean + std else 3
+            if patches[0, i] > mean else 2
+            if patches[0, i] > mean - std else 1
+            if patches[0, i] > mean - 2 * std else 0
+            for i in range(patches.shape[1])
+        ]
 
-        # print(len(attribute_score_per_patch))
+        # print(attribute_score_per_patch)
+
+        threshold_score = 3
 
         img_resized_final = img_resized.copy()
         fig, ax = plt.subplots()
@@ -106,10 +117,26 @@ def visualize(Args):
         for i in range(factor):
             for j in range(factor):
                 index = x[i, j] * factor + y[i, j]
-                if attribute_score_per_patch[index] == 1:
+                score = attribute_score_per_patch[index]
+                if score >= threshold_score:
+                    if score == 1:
+                        edgecolor = 'blue'
+                        alpha = 0.3
+                    elif score == 2:
+                        edgecolor = 'yellow'
+                        alpha = 0.4
+                    elif score == 3:
+                        edgecolor = 'orange'
+                        alpha = 0.6
+                    elif score == 4:
+                        edgecolor = 'orangered'
+                        alpha = 0.7
+                    else:
+                        edgecolor = 'red'
+                        alpha = 1
+
                     rect = pat.Rectangle((y[i, j] * grid_size, x[i, j] * grid_size), grid_size - 1, grid_size - 1,
-                                         linewidth=1,
-                                         edgecolor='r', facecolor='none')
+                                         linewidth=1, edgecolor=edgecolor, facecolor='none', alpha=alpha)
 
                     ax.add_patch(rect)
 

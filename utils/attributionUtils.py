@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from Attribution.attention_rollout import AttentionRollout
+from attribution.attention_rollout import AttentionRollout
 
 
 def process_attribution(attributions, factor):

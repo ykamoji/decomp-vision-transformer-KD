@@ -45,13 +45,14 @@ Distillation:
   UseAttributionLoss: True
 
 Visualization:
-  Action: False
+  Action: True
   Model:
     Name: google/vit-base-patch16-224
     CachePath: model/
     OutputPath: tuned-model/
     Index: -1
-    Device: 'cpu' # update to cuda or mps for GPU support
-  Output: AttributionOutputs/
+    Device: 'mps' # update to cuda or mps for GPU support
+  Input: images
+  Output: attributionOutputs/
   Show: False
-  Save: False
+  Save: True
