@@ -142,8 +142,16 @@ class DistillationTrainer(Trainer):
         kwargs = {}
         s_kwargs = {}
         if self.is_in_train:
-            kwargs = {**kwargs,**{"output_hidden_states":True, "output_attentions": True,"output_norms": True,
-                                  "output_globenc": True}}
+
+            if self.use_hidden_loss:
+                kwargs = {**kwargs, **{"output_hidden_states":True}}
+
+            if self.use_attribution_loss:
+                kwargs = {**kwargs, **{"output_attentions": True}}
+
+            if self.use_attribution_loss:
+                kwargs = {**kwargs,**{"output_hidden_states":True, "output_attentions": True,
+                                      "output_norms": True, "output_globenc": True}}
 
             s_kwargs = {**kwargs, **{"is_student":True}}
 
