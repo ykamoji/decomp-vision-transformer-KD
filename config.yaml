@@ -55,6 +55,6 @@ Visualization:
     Index: -1
     Device: 'cpu' # update to cuda or mps for GPU support
   Input: images
-  Output: attributionOutputs/
+  Output: featureOutputs/
   Show: False
   Save: False
