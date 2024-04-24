@@ -1,7 +1,8 @@
 import torch
 import numpy as np
-from PIL import Image
 import random
+import matplotlib.pyplot as plt
+from PIL import Image
 from attribution.attention_rollout import AttentionRollout
 
 
@@ -63,10 +64,25 @@ def process_common(attn):
     return attn_cls
 
 
-def mask_image(image_nd, type, mask_perc, scores=None):
+def feature_score(patches):
+    mean = np.mean(patches[0])
+    std = np.std(patches[0])
+    score_per_patch = [
+        5
+        if patches[0, i] > mean + 2 * std else 4
+        if patches[0, i] > mean + std else 3
+        if patches[0, i] > mean else 2
+        if patches[0, i] > mean - std else 1
+        if patches[0, i] > mean - 2 * std else 0
+        for i in range(patches.shape[1])
+    ]
+    return score_per_patch
+
+
+def mask_image(image_tensor, type, mask_perc, scores=None):
     if type == 'random':
-        image_masked = image_nd.copy()
-        height, width, _ = image_nd.shape
+        image_masked = torch.clone(image_tensor)
+        _, height, width = image_tensor.shape
 
         mask_pixel_count = int(height * width * mask_perc / 100)
         indices = random.sample(range(height * width), mask_pixel_count)
@@ -74,9 +90,15 @@ def mask_image(image_nd, type, mask_perc, scores=None):
         for index in indices:
             row = index // width
             col = index % width
-            image_masked[row, col,:] = [0, 0, 0]
+            image_masked[:,row, col] = torch.tensor([0, 0, 0])
 
-        return Image.fromarray(image_masked)
+        return image_masked
+
+    else:
+        image_masked = torch.clone(image_tensor)
+        _, height, width = image_tensor.shape
+        ##TODO :: masking based on scores
+
 
 
 
