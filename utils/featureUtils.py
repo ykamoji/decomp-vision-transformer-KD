@@ -1,5 +1,7 @@
 import torch
 import numpy as np
+from PIL import Image
+import random
 from attribution.attention_rollout import AttentionRollout
 
 
@@ -59,3 +61,22 @@ def process_common(attn):
     row_sums = attn_cls.max(axis=1)
     attn_cls = attn_cls / row_sums[:, np.newaxis]
     return attn_cls
+
+
+def mask_image(image_nd, type, mask_perc, scores=None):
+    if type == 'random':
+        image_masked = image_nd.copy()
+        height, width, _ = image_nd.shape
+
+        mask_pixel_count = int(height * width * mask_perc / 100)
+        indices = random.sample(range(height * width), mask_pixel_count)
+
+        for index in indices:
+            row = index // width
+            col = index % width
+            image_masked[row, col,:] = [0, 0, 0]
+
+        return Image.fromarray(image_masked)
+
+
+

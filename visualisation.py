@@ -2,9 +2,11 @@ from models_utils import ViTForImageClassification, DeiTForImageClassificationWi
 from transformers import ViTImageProcessor, DeiTImageProcessor
 from transformers.image_transforms import resize
 from transformers.image_utils import PILImageResampling
-from utils.featureUtils import process_features
+from utils.featureUtils import process_features, mask_image
 import matplotlib.patches as pat
 import matplotlib.pyplot as plt
+from torch.utils.data import Dataset, DataLoader
+from tqdm import tqdm
 import glob
 import numpy as np
 from PIL import Image
@@ -21,7 +23,7 @@ def visualize(Args):
     saveImages = Args.Visualization.Save
 
     images = glob.glob(f"{Args.Visualization.Input}/*.JPEG")
-    Device = Args.Visualization.Model.Device
+    device = Args.Visualization.Model.Device
 
     # model_path = get_model_path('FineTuned', Args)
     model_name = Args.Visualization.Model.Name
@@ -37,16 +39,16 @@ def visualize(Args):
     processor = feature_extractor.from_pretrained(model_name, cache_dir=Args.Visualization.Model.CachePath)
 
     model.eval()
-    model.to(Device)
+    model.to(device)
+    factor = 14
 
     for im in images:
 
         label = im.split('_')[1].split('.')[0]
         image = Image.open(im)
-        factor = 14
 
         inputs = processor(images=image, return_tensors="pt")
-        inputs.to(Device)
+        inputs.to(device)
         outputs = model(**inputs, output_attentions=True, output_hidden_states=True, output_norms=True,
                         output_globenc=True)
         logits = outputs.logits
@@ -142,3 +144,47 @@ def visualize(Args):
             plt.savefig(outputPath + f"{label}_features")
         if showImages:
             plt.show()
+
+    if Args.Visualization.PlotMaskedCurves:
+        plotMaskedCurves(model, processor, images, Args)
+
+
+def plotMaskedCurves(model, processor, images, Args):
+    dataset = []
+    batch_size = 10
+    pbar = tqdm(images)
+    pbar.set_description("Image Masking")
+    for im in pbar:
+        label = im.split('_')[1].split('.')[0]
+        image = Image.open(im)
+        image_nd = np.array(image)
+        if image_nd.ndim < 3:
+            continue
+        masked_image = mask_image(image_nd, type='random', mask_perc=Args.Visualization.MaskedPerc)
+        processed_image = processor(images=masked_image, return_tensors="pt")
+        processed_image.data['pixel_values'] = processed_image.data['pixel_values'][0]
+        processed_image.data['label'] = label
+        dataset.append(processed_image.data)
+
+    dataloader = DataLoader(dataset, batch_size=batch_size)
+    pbar = tqdm(iter(dataloader))
+    progress, accuracy = 0, 0
+    for batch in pbar:
+
+        inputs = {'pixel_values':batch['pixel_values'].to(Args.Visualization.Model.Device)}
+        # outputs = model(**inputs, output_attentions=True, output_hidden_states=True, output_norms=True,
+        #                     output_globenc=True)
+        outputs = model(**inputs)
+        logits = outputs.logits
+        labels = batch['label']
+        preds = logits.argmax(-1)
+        for i in range(len(labels)):
+            progress += 1
+            # print(f"Actual: {labels[i].ljust(10, ' ')} Predicted: {model.config.id2label[preds[i].item()]}")
+            accuracy += labels[i] in model.config.id2label[preds[i].item()]
+            pbar.set_postfix({"Accuracy": f"{accuracy*100/progress:.3f}"})
+
+
+    # accuracy /= len(dataset)
+    # print(f"Accuracy: {accuracy*100:.3f} %")
+
