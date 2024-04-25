@@ -78,8 +78,33 @@ class DistillationTrainer(Trainer):
     ## TODO: MSE loss for the attn
     ##  For distillation with distillation tokens, remove the distil token from the tensor
     ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/task_distill.py#L935
-    def _attn_loss(self, teacher_attn, student_attn):
-        return 0
+    def _attn_loss(self, teacher_atts, student_atts):
+        # return torch.zeros(1)
+        att_loss = 0.
+        loss_mse = nn.MSELoss()
+
+        teacher_layer_num = len(teacher_atts)
+        student_layer_num = len(student_atts)
+        assert teacher_layer_num % student_layer_num == 0
+        layers_per_block = int(teacher_layer_num / student_layer_num)
+        # layers_per_block = 1
+
+        new_teacher_atts = [teacher_atts[i * layers_per_block + layers_per_block - 1]
+                            for i in range(student_layer_num)]
+
+        for student_att, teacher_att in zip(student_atts, new_teacher_atts):
+            student_att = torch.where(student_att <= -1e2,
+                                      torch.zeros_like(student_att),
+                                      student_att)
+            teacher_att = torch.where(teacher_att <= -1e2,
+                                      torch.zeros_like(teacher_att),
+                                      teacher_att)
+            #student_att shape torch.Size([8, 12, 198, 198])
+            # student_att shape torch.Size([8, 12, 197, 197])
+            #TODO is the last extra value is due to atrribution loss? I just removed that from the last two dimention
+            tmp_loss = loss_mse(student_att[:,:,:-1,:-1], teacher_att)
+            att_loss += tmp_loss
+        return att_loss
 
     def _process_attribution(self, attr):
         num_layers = len(attr)
@@ -146,14 +171,15 @@ class DistillationTrainer(Trainer):
             if self.use_hidden_loss:
                 kwargs = {**kwargs, **{"output_hidden_states":True}}
 
-            if self.use_attribution_loss:
+            if self.use_attention_loss:
                 kwargs = {**kwargs, **{"output_attentions": True}}
 
             if self.use_attribution_loss:
                 kwargs = {**kwargs,**{"output_hidden_states":True, "output_attentions": True,
                                       "output_norms": True, "output_globenc": True}}
 
-            s_kwargs = {**kwargs, **{"is_student":True}}
+            # s_kwargs = {**kwargs, **{"is_student":True}}
+            s_kwargs  = kwargs
 
         student_output = self.student(**student_inputs, **s_kwargs)
 
@@ -173,9 +199,10 @@ class DistillationTrainer(Trainer):
 
         if self.use_attention_loss:
             loss += self._attn_loss(teacher_output.attentions, student_output.attentions)
-
+            print(f"l_attn {self._attn_loss(teacher_output.attentions, student_output.attentions)}")
         if self.use_hidden_loss:
             loss += self._layer_loss(teacher_output.hidden_states, student_output.hidden_states)
+
 
         if self.use_attribution_loss:
             loss += self._attribution_loss(teacher_output.attributions, student_output.attributions)
