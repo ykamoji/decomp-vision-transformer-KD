@@ -10,17 +10,21 @@ def process_features(features, factor, featureType):
 
     if featureType == 'Attribution':
         norm_cls = prepare_attributions(features)
-    else:
+    elif featureType == 'Attention':
         norm_cls = prepare_attentions(features)
+    elif featureType == 'ATS':
+        norm_cls = prepare_ats(features)
 
     num_layers = len(features)
 
     # print(norm_cls.shape)
-
-    cls = norm_cls[:, 0]
+    # cls = norm_cls[:, 0]
     # print(cls.shape)
 
-    others = norm_cls[:, 1:]
+    if featureType == 'ATS':
+        others = norm_cls
+    else:
+        others = norm_cls[:, 1:]
     # print(others.shape)
     patches = []
     step = 196 // (factor ** 2)
@@ -56,6 +60,13 @@ def prepare_attentions(attentions):
     attn = torch.stack([attentions[i] for i in range(num_layers)]).detach().squeeze().cpu().numpy()
     norm_attn = attn.mean(axis=1)
     return process_common(norm_attn)
+
+
+def prepare_ats(adapative):
+    num_layers = len(adapative)
+    ats = torch.stack([adapative[i] for i in range(num_layers)]).detach().squeeze().cpu().numpy()
+    ats = np.flip(ats, axis=0)
+    return ats
 
 
 def process_common(attn):

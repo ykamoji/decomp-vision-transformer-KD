@@ -24,7 +24,7 @@ warnings.filterwarnings('ignore')
 def visualize(Args):
     outputPath = Args.Visualization.Output
 
-    images = glob.glob(f"{Args.Visualization.Input}/*/*.JPEG")
+    images = glob.glob(f"{Args.Visualization.Input}/*.JPEG")
     device = Args.Visualization.Model.Device
 
     # model_path = get_model_path('FineTuned', Args)
@@ -56,8 +56,8 @@ def visualize(Args):
 
         for im in images:
 
-            # label = im.split('_')[1].split('.')[0]
-            label = label_map[im.split('/')[-2]]
+            label = im.split('_')[1].split('.')[0]
+            # label = label_map[im.split('/')[-2]]
 
             image = Image.open(im)
 
@@ -66,18 +66,20 @@ def visualize(Args):
 
             inputs = processor(images=image, return_tensors="pt")
             inputs.to(device)
-            outputs = model(**inputs, output_attentions=True, output_hidden_states=True, output_norms=True,
+            outputs_1 = model(**inputs, output_attentions=True, output_hidden_states=True, output_norms=True,
                             output_globenc=True)
-            logits = outputs.logits
+
+            outputs_2 = model(**inputs, output_ats=True)
+            logits = outputs_1.logits
             predicted_class_idx = logits.argmax(-1).item()
             print(f"Actual: {label.ljust(10, ' ')} Predicted: {model.config.id2label[predicted_class_idx]}")
 
             trans_features = []
 
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 7))
-            for features, feature_type, ax in zip([outputs.attributions, outputs.attentions],
-                                                  ["Attribution", "Attention"],
-                                                  [ax1, ax2]):
+            fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(14, 7))
+            for features, feature_type, ax in zip([outputs_1.attributions, outputs_1.attentions, outputs_2.attentions],
+                                                  ["Attribution", "Attention", "ATS"],
+                                                  [ax1, ax2, ax3]):
                 patches = process_features(features, factor, featureType=feature_type)
                 trans_features.append(patches)
                 df = pd.DataFrame(patches, columns=np.arange(1, patches.shape[1] + 1), index=range(len(patches), 0, -1))
@@ -91,7 +93,7 @@ def visualize(Args):
             if showImages:
                 plt.show()
 
-            fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14, 7))
+            fig, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(15, 8))
 
             img_resized = resize(np.array(image), size=(224, 224), resample=PILImageResampling.BILINEAR)
             grid_size = 224 // factor
@@ -105,8 +107,9 @@ def visualize(Args):
             ax1.axis('off')
 
             img_resized_feature = img_resized.copy()
-            for patches, feature_type, ax in zip([trans_features[0], trans_features[1]], ["Attribution", "Attention"],
-                                                 [ax2, ax3]):
+            for patches, feature_type, ax in zip([trans_features[0], trans_features[1], trans_features[2]],
+                                                 ["Attribution", "Attention", "ATS"],
+                                                 [ax2, ax3, ax4]):
 
                 attribute_score_per_patch = feature_score(patches)
 
