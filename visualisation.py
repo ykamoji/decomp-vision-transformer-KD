@@ -147,7 +147,7 @@ def visualize(Args):
 def plotMaskedCurves(model, processor, images, label_map, K, Args):
     dataset = []
     pbar = tqdm(images)
-    pbar.set_description("Image Masking")
+    pbar.set_description("Image Masking (Random)")
     images_downstream = []
     for im in pbar:
         # label = im.split('_')[1].split('.')[0]
@@ -277,6 +277,6 @@ def eval_model(dataset, model, strategy, Args):
             pbar.set_postfix({"Accuracy": f"{masking_accuracy / progress:.7f}"})
 
     masking_accuracy /= len(dataset)
-    # print(f"{strategy} Masking Accuracy: {masking_accuracy * 100:.3f} %")
+    # print(f"{strategy} Masking Accuracy: {masking_accuracy * 100:.7f} %")
 
     return round(masking_accuracy, 7)

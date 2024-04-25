@@ -163,12 +163,15 @@ def mask_image(image_tensor, type, mask_perc, scores=None, threshold_score=2):
 
                     for xi in range(grid_size):
                         for yj in range(grid_size):
-                            pixels_to_mask.append((mask_x[xi, yj], mask_y[xi, yj]))
+                            pixels_to_mask.append(((mask_x[xi, yj], mask_y[xi, yj]), score))
+
+        pixels_to_mask_sorted = sorted(pixels_to_mask, key=lambda pixel: pixel[1])
 
         mask_pixel_count = int(height * width * mask_perc / 100)
         if mask_pixel_count > len(pixels_to_mask):
             mask_pixel_count = len(pixels_to_mask)
-        pixels_to_mask_perc = random.sample(pixels_to_mask, mask_pixel_count)
+
+        pixels_to_mask_perc = [(x,y) for ((x,y),score) in pixels_to_mask_sorted[:mask_pixel_count]]
 
         for x, y in pixels_to_mask_perc:
             image_masked[:,x,y] = torch.tensor([0, 0, 0])
