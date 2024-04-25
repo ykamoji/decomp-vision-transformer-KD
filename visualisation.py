@@ -24,7 +24,7 @@ warnings.filterwarnings('ignore')
 def visualize(Args):
     outputPath = Args.Visualization.Output
 
-    images = glob.glob(f"{Args.Visualization.Input}/*.JPEG")
+    images = glob.glob(f"{Args.Visualization.Input}/*/*.JPEG")
     device = Args.Visualization.Model.Device
 
     # model_path = get_model_path('FineTuned', Args)
@@ -162,13 +162,26 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
         masked_image = mask_image(processed_image, type='random', mask_perc=K)
         dataset.append({'pixel_values': masked_image, 'label': label})
 
+    result = {"K":K}
+
     random_accuracy = eval_model(dataset, model, "Random", Args)
+
+    result["random_accuracy"] = random_accuracy
 
     attention_accuracy = mask_feature_eval(images_downstream, model,
                                              'Attention',
                                              {"output_attentions": True},
                                              K,
                                              Args)
+
+    result["attention_accuracy"] = attention_accuracy
+
+    ats_accuracy = mask_feature_eval(images_downstream, model,
+                                     'ATS',
+                                     {"output_ats": True},
+                                     K,
+                                     Args)
+    result["ats_accuracy"] = ats_accuracy
 
     attribution_accuracy = mask_feature_eval(images_downstream, model,
                                                'Attribution',
@@ -177,11 +190,10 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
                                              K,
                                              Args)
 
-    ##TODO :: masking based on ATS score
+    result["attribution_accuracy"] = attribution_accuracy
 
-    return {"K": K, "random_accuracy": random_accuracy, "attention_accuracy": attention_accuracy,
-             "attribution_accuracy":attribution_accuracy}
 
+    return result
 
 
 def mask_feature_eval(dataset, model, type, params, K, Args):
@@ -201,7 +213,7 @@ def mask_feature_eval(dataset, model, type, params, K, Args):
         for batch in pbar:
             inputs = {'pixel_values': batch['pixel_values'].to(Args.Visualization.Model.Device)}
             outputs = model(**inputs, **params)
-            if type == 'Attention':
+            if type == 'Attention' or type == 'ATS':
                 features = outputs.attentions
             elif type == 'Attribution':
                 features = outputs.attributions
@@ -233,6 +245,9 @@ def process_feature_output_batch(features, type):
     elif type == "Attribution":
         batch_tensor = torch.stack([features[i][4] for i in range(num_layers)])
         batch_tensor = batch_tensor.permute((1, 0, 2, 3))
+    elif type == "ATS":
+        batch_tensor = torch.stack([features[i] for i in range(num_layers)])
+        batch_tensor = batch_tensor.permute((1, 0, 2))
 
     single_image_features = (batch_tensor[i] for i in range(batch_tensor.shape[0]))
     scores = []
@@ -259,9 +274,9 @@ def eval_model(dataset, model, strategy, Args):
             progress += 1
             # print(f"Actual: {labels[i].ljust(10, ' ')} Predicted: {model.config.id2label[preds[i].item()]}")
             masking_accuracy += labels[i] in model.config.id2label[preds[i].item()]
-            pbar.set_postfix({"Accuracy": f"{masking_accuracy / progress:.3f}"})
+            pbar.set_postfix({"Accuracy": f"{masking_accuracy / progress:.7f}"})
 
     masking_accuracy /= len(dataset)
     # print(f"{strategy} Masking Accuracy: {masking_accuracy * 100:.3f} %")
 
-    return round(masking_accuracy, 3)
+    return round(masking_accuracy, 7)
