@@ -7,6 +7,8 @@ import time
 import csv
 import warnings
 from tqdm import tqdm
+import os
+import pickle
 from PIL import Image
 import matplotlib.pyplot as plt
 from models_utils import ViTForImageClassification, DeiTForImageClassificationWithTeacher
@@ -22,7 +24,7 @@ warnings.filterwarnings('ignore')
 def visualize(Args):
     outputPath = Args.Visualization.Output
 
-    images = glob.glob(f"{Args.Visualization.Input}/*.JPEG")
+    images = glob.glob(f"{Args.Visualization.Input}/*/*.JPEG")
     device = Args.Visualization.Model.Device
 
     # model_path = get_model_path('FineTuned', Args)
@@ -38,6 +40,10 @@ def visualize(Args):
 
     processor = feature_extractor.from_pretrained(model_name, cache_dir=Args.Visualization.Model.CachePath)
 
+    data = pickle.load(open(Args.Visualization.Input + f'/data.pkl', 'rb'), encoding='latin-1')
+
+    label_map = {k: " ".join(v) for k, v in data[0].items()}
+
     model.eval()
     model.to(device)
     factor = 14
@@ -50,7 +56,9 @@ def visualize(Args):
 
         for im in images:
 
-            label = im.split('_')[1].split('.')[0]
+            # label = im.split('_')[1].split('.')[0]
+            label = label_map[im.split('/')[-2]]
+
             image = Image.open(im)
 
             if np.array(image).ndim < 3:
@@ -123,7 +131,7 @@ def visualize(Args):
         for K in Args.Visualization.Plot.MaskedPerc:
             if K > 10: time.sleep(5)
             print(f"\n------ Evaluating for K={K}% -------\n")
-            results[K] = plotMaskedCurves(model, processor, images, K, Args)
+            results[K] = plotMaskedCurves(model, processor, images, label_map, K, Args)
 
         accuracies = results[Args.Visualization.Plot.MaskedPerc[0]].keys()
         with open(f'{outputPath}/Accuracies.csv', 'w') as f:
@@ -133,13 +141,14 @@ def visualize(Args):
                 w.writerow(results[K])
 
 
-def plotMaskedCurves(model, processor, images, K, Args):
+def plotMaskedCurves(model, processor, images, label_map, K, Args):
     dataset = []
-    pbar = tqdm(images[:50])
+    pbar = tqdm(images)
     pbar.set_description("Image Masking")
     images_downstream = []
     for im in pbar:
-        label = im.split('_')[1].split('.')[0]
+        # label = im.split('_')[1].split('.')[0]
+        label = label_map[im.split('/')[-2]]
         image = Image.open(im)
         image_nd = np.array(image)
         if image_nd.ndim < 3:
@@ -171,12 +180,16 @@ def plotMaskedCurves(model, processor, images, K, Args):
              "attribution_accuracy":attribution_accuracy}
 
 
-feature_score_cache = {}
-
 
 def mask_feature_eval(dataset, model, type, params, K, Args):
-    if type in feature_score_cache.keys():
-        feature_scores = feature_score_cache[type]
+
+    cached = False
+    if os.path.exists(f".feature_{type}_cache.npy"):
+        feature_scores_cache = np.load(f".feature_{type}_cache.npy")
+        cached = True
+
+    if cached:
+        feature_scores = feature_scores_cache.tolist()
     else:
         dataloader = DataLoader(dataset, batch_size=Args.Visualization.Plot.BatchSize)
         pbar = tqdm(iter(dataloader))
@@ -190,7 +203,9 @@ def mask_feature_eval(dataset, model, type, params, K, Args):
             elif type == 'Attribution':
                 features = outputs.attributions
             feature_scores += process_feature_output_batch(features, type)
-        feature_score_cache[type] = feature_scores
+
+        feature_scores_nd = np.array(feature_scores)
+        np.save(f".feature_{type}_cache", feature_scores_nd)
 
     masked_attn_dataset = []
     pbar = tqdm(range(len(dataset)))
