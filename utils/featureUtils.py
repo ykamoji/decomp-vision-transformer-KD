@@ -1,8 +1,8 @@
 import torch
-import numpy as np
 import random
+import numpy as np
+import matplotlib.patches as pat
 import matplotlib.pyplot as plt
-from PIL import Image
 from attribution.attention_rollout import AttentionRollout
 
 
@@ -44,7 +44,10 @@ def process_features(features, factor, featureType):
 
 def prepare_attributions(attributions):
     num_layers = len(attributions)
-    norm_nenc = torch.stack([attributions[i][4] for i in range(num_layers)]).detach().squeeze().cpu().numpy()
+    if type(attributions[0]) is tuple:
+        norm_nenc = torch.stack([attributions[i][4] for i in range(num_layers)]).detach().squeeze().cpu().numpy()
+    else:
+        norm_nenc = attributions.detach().cpu().numpy()
     return process_common(norm_nenc)
 
 
@@ -79,7 +82,40 @@ def feature_score(patches):
     return score_per_patch
 
 
-def mask_image(image_tensor, type, mask_perc, scores=None):
+def plot_feature_scores(attribute_score_per_patch, ax, factor, feature_type, grid_size, img_resized_feature,
+                        threshold_score):
+    x, y = np.meshgrid(np.arange(0, factor), np.arange(0, factor), indexing='ij')
+    for i in range(factor):
+        for j in range(factor):
+            index = x[i, j] * factor + y[i, j]
+            score = attribute_score_per_patch[index]
+            if score >= threshold_score:
+                if score == 1:
+                    edgecolor = 'blue'
+                    alpha = 0.2
+                elif score == 2:
+                    edgecolor = 'yellow'
+                    alpha = 0.4
+                elif score == 3:
+                    edgecolor = 'orange'
+                    alpha = 0.6
+                elif score == 4:
+                    edgecolor = 'orangered'
+                    alpha = 0.7
+                else:
+                    edgecolor = 'red'
+                    alpha = 1
+
+                rect = pat.Rectangle((y[i, j] * grid_size, x[i, j] * grid_size), grid_size - 1, grid_size - 1,
+                                     linewidth=1, edgecolor=edgecolor, facecolor='none', alpha=alpha)
+
+                ax.add_patch(rect)
+                ax.imshow(img_resized_feature)
+                ax.set_title(f"{feature_type}")
+                ax.axis('off')
+
+
+def mask_image(image_tensor, type, mask_perc, scores=None, threshold_score=2):
     if type == 'random':
         image_masked = torch.clone(image_tensor)
         _, height, width = image_tensor.shape
@@ -97,7 +133,39 @@ def mask_image(image_tensor, type, mask_perc, scores=None):
     else:
         image_masked = torch.clone(image_tensor)
         _, height, width = image_tensor.shape
-        ##TODO :: masking based on scores
+        factor = 14
+        grid_size = 224 // factor
+        x, y = np.meshgrid(np.arange(0, factor), np.arange(0, factor), indexing='ij')
+        # fig, ax = plt.subplots(1,1)
+        # plot_feature_scores(scores, ax, factor, type, grid_size, image_masked.permute((1,2,0)).numpy(), threshold_score)
+        # plt.show()
+
+        pixels_to_mask = []
+        for i in range(14):
+            for j in range(14):
+                index = x[i, j] * 14 + y[i, j]
+                score = scores[index]
+                if score >= threshold_score:
+                    mask_x, mask_y = np.meshgrid(np.arange(x[i, j] * grid_size, (x[i, j] + 1)* grid_size),
+                                np.arange(y[i, j] * grid_size, (y[i, j] + 1)* grid_size),
+                                indexing='ij')
+
+                    for xi in range(grid_size):
+                        for yj in range(grid_size):
+                            pixels_to_mask.append((mask_x[xi, yj], mask_y[xi, yj]))
+
+        mask_pixel_count = int(height * width * mask_perc / 100)
+        if mask_pixel_count > len(pixels_to_mask):
+            mask_pixel_count = len(pixels_to_mask)
+        pixels_to_mask_perc = random.sample(pixels_to_mask, mask_pixel_count)
+
+        for x, y in pixels_to_mask_perc:
+            image_masked[:,x,y] = torch.tensor([0, 0, 0])
+
+        # plt.imshow(image_masked.permute((1,2,0)).numpy())
+        # plt.show()
+
+        return image_masked
 
 
 

@@ -56,9 +56,13 @@ Visualization:
     Device: 'cpu' # update to cuda or mps for GPU support
   Input: images
   Output: featureOutputs/
+  Features:
+    CompareFeatures: False
+    ThresholdScore: 3
+    Show: True
+    Save: False
   Plot:
-    BatchSize: 4
     PlotMaskedCurves: True
-    MaskedPerc: 50
-  Show: False
-  Save: False
+    ThresholdScore: 2
+    BatchSize: 2
+    MaskedPerc: [10, 20, 30, 40, 50] # in %
