@@ -201,9 +201,30 @@ class ViTSelfAttention(nn.Module):
         x = x.view(new_x_shape)
         return x.permute(0, 2, 1, 3)
 
+    def score_assignment_step(self, attn: torch.Tensor, v: torch.Tensor) -> (torch.Tensor, torch.Tensor):
+        """
+        Token Score Assignment Step.
+        :param attn: attention matrix
+        :param v: values
+        :return: sorted significance scores and their corresponding indices
+        """
+        with torch.no_grad():
+            B, _, _, _ = attn.shape
+            C = v.shape[3] * self.num_attention_heads
+            v_norm = torch.linalg.norm(
+                v.transpose(1, 2).reshape(B, attn.shape[2], C), ord=2, dim=2
+            )  # value norm of size [B x T]
+            significance_score = attn[:, :, 0].sum(dim=1)  # attention weights of CLS token of size [B x T]
+            significance_score = significance_score * v_norm  # [B x T]
+            significance_score = significance_score[:, 1:]  # [B x T-1]
+            significance_score = significance_score / significance_score.sum(dim=1, keepdim=True)  # [B x T-1]
+
+        return significance_score
+
     def forward(
             self, hidden_states, head_mask: Optional[torch.Tensor] = None, output_attentions: bool = False,
             output_norms: Optional[bool] = False, output_globenc: Optional[bool] = False,
+            output_ats: Optional[bool] = False,
     ) -> Union[Tuple[torch.Tensor, torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
         mixed_query_layer = self.query(hidden_states)
 
@@ -232,6 +253,11 @@ class ViTSelfAttention(nn.Module):
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(new_context_layer_shape)
+
+        if output_ats:
+            ats_score = self.score_assignment_step(attention_probs, value_layer)
+            outputs = (context_layer, ats_score)
+            return outputs
 
         if output_norms or output_globenc:
             outputs = (context_layer, attention_probs, value_layer)
@@ -292,9 +318,11 @@ class ViTAttention(nn.Module):
             output_attentions: bool = False,
             output_norms=False,
             output_globenc=False,
+            output_ats: Optional[bool] = False,
     ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
         self_outputs = self.attention(hidden_states, head_mask, output_attentions,
-                                      output_norms=output_norms, output_globenc=output_globenc)
+                                      output_norms=output_norms, output_globenc=output_globenc,
+                                      output_ats=output_ats)
 
         attention_output = self.output(self_outputs[0], hidden_states)
 
@@ -353,6 +381,7 @@ class ViTLayer(nn.Module):
             output_attentions: bool = False,
             output_norms: Optional[bool] = False,
             output_globenc: Optional[bool] = False,
+            output_ats: Optional[bool] = False,
     ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
         self_attention_outputs = self.attention(
             self.layernorm_before(hidden_states),  # in ViT, layernorm is applied before self-attention
@@ -360,6 +389,7 @@ class ViTLayer(nn.Module):
             output_attentions=output_attentions,
             output_norms=output_norms,
             output_globenc=output_globenc,
+            output_ats=output_ats
         )
         attention_output = self_attention_outputs[0]
         outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
@@ -500,7 +530,7 @@ class VitNormOutput(nn.Module):
         # print(layer_value.shape)
 
         norm_output = self(hidden_states, attention, layer_value, dense, layerNorm1, pre_ln_states,
-                                globenc_only=(not output_norms))
+                           globenc_only=(not output_norms))
 
         post_ln_layer = norm_output[4] if output_norms else norm_output[0]
         each_mean = post_ln_layer.mean(-1, keepdim=True)
@@ -543,9 +573,10 @@ class ViTEncoder(nn.Module):
             return_dict: bool = True,
             output_norms: Optional[bool] = False,
             output_globenc: Optional[bool] = None,
+            output_ats: Optional[bool] = False,
     ) -> Union[tuple, BaseModelOutput]:
         all_hidden_states = () if output_hidden_states else None
-        all_self_attentions = () if output_attentions else None
+        all_self_attentions = () if output_attentions or output_ats else None
         previous_value_layer = None
         previous_hidden_input = None
         previous_pre_ln_states = None
@@ -566,7 +597,7 @@ class ViTEncoder(nn.Module):
                 )
             else:
                 layer_outputs = layer_module(hidden_states, layer_head_mask, output_attentions,
-                                             output_norms, output_globenc)
+                                             output_norms, output_globenc, output_ats)
 
             if i > 0 and (output_norms or output_globenc):
                 norm_output = self.norm.perform_attribution(previous_hidden_input, all_self_attentions[i - 1],
@@ -585,7 +616,7 @@ class ViTEncoder(nn.Module):
 
             hidden_states = layer_outputs[0]
 
-            if output_attentions:
+            if output_attentions or output_ats:
                 all_self_attentions = all_self_attentions + (layer_outputs[1],)
 
         if output_hidden_states:
@@ -728,6 +759,7 @@ class ViTModel(ViTPreTrainedModel):
             return_dict: Optional[bool] = None,
             output_norms: Optional[bool] = None,
             output_globenc: Optional[bool] = None,
+            output_ats: Optional[bool] = False,
     ) -> Union[Tuple, BaseModelOutputWithPooling]:
         r"""
         bool_masked_pos (`torch.BoolTensor` of shape `(batch_size, num_patches)`, *optional*):
@@ -767,6 +799,7 @@ class ViTModel(ViTPreTrainedModel):
             return_dict=return_dict,
             output_norms=output_norms,
             output_globenc=output_globenc,
+            output_ats=output_ats,
         )
         sequence_output = encoder_outputs[0]
         sequence_output = self.layernorm(sequence_output)
@@ -989,6 +1022,7 @@ class ViTForImageClassification(ViTPreTrainedModel):
             return_dict: Optional[bool] = None,
             output_norms: Optional[bool] = False,
             output_globenc: Optional[bool] = False,
+            output_ats: Optional[bool] = False,
             is_student: Optional[bool] = False,
     ) -> Union[tuple, ImageClassifierOutput]:
         r"""
@@ -1007,7 +1041,8 @@ class ViTForImageClassification(ViTPreTrainedModel):
             interpolate_pos_encoding=interpolate_pos_encoding,
             return_dict=return_dict,
             output_norms=output_norms,
-            output_globenc=output_globenc
+            output_globenc=output_globenc,
+            output_ats=output_ats,
         )
 
         sequence_output = outputs[0]

@@ -54,7 +54,15 @@ Visualization:
     OutputPath: tuned-model/
     Index: -1
     Device: 'cpu' # update to cuda or mps for GPU support
-  Input: images
+  Input: images   # kaggle datasets download -d hieu1344/imagenetsample
   Output: featureOutputs/
-  Show: False
-  Save: False
+  Features:
+    CompareFeatures: False
+    ThresholdScore: 3
+    Show: False
+    Save: False
+  Plot:
+    PlotMaskedCurves: False
+    ThresholdScore: 2
+    BatchSize: 2
+    MaskedPerc: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100] # in %
