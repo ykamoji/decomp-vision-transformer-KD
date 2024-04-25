@@ -101,8 +101,8 @@ class DistillationTrainer(Trainer):
                                       teacher_att)
             #student_att shape torch.Size([8, 12, 198, 198])
             # student_att shape torch.Size([8, 12, 197, 197])
-            #TODO is the last extra value is due to atrribution loss? I just removed that from the last two dimention
-            tmp_loss = loss_mse(student_att[:,:,:-1,:-1], teacher_att)
+            #TODO is the last extra value is due to atrribution loss? I just removed the second one
+            tmp_loss = loss_mse(student_att[:,:,:1:,:1:], teacher_att)
             att_loss += tmp_loss
         return att_loss
 
