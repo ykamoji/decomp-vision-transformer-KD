@@ -72,7 +72,7 @@ def run_distillation(Args):
 
     distillation_args = get_distillation_training_args(output_path, Args.Distillation.Hyperparameters)
 
-    writer = SummaryWriter(distillation_args.logging_dir)
+    writer = SummaryWriter(distillation_args.logging_dir + 'loss/', max_queue=2, flush_secs=5)
 
     distillation_trainer = DistillationTrainer(
         teacher_model=teacher_model,
