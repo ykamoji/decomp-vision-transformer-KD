@@ -3,6 +3,7 @@ from transformers import TrainingArguments
 from models_utils import ViTForImageClassification, DeiTForImageClassificationWithTeacher
 from transformers.training_args import OptimizerNames
 from loss import DistillationTrainer
+from torch.utils.tensorboard import SummaryWriter
 from utils.pathUtils import prepare_output_path, get_model_path
 import warnings
 
@@ -71,6 +72,8 @@ def run_distillation(Args):
 
     distillation_args = get_distillation_training_args(output_path, Args.Distillation.Hyperparameters)
 
+    writer = SummaryWriter(distillation_args.logging_dir)
+
     distillation_trainer = DistillationTrainer(
         teacher_model=teacher_model,
         student_model=student_model,
@@ -81,6 +84,7 @@ def run_distillation(Args):
         eval_dataset=testing_data,
         temperature=5,
         alpha=0.5,
+        writer=writer,
         distillation_token=Args.Distillation.UseDistTokens,
         distillation_type=Args.Distillation.DistillationType,
         use_attribution_loss=Args.Distillation.UseAttributionLoss,
@@ -97,6 +101,8 @@ def run_distillation(Args):
     metrics = distillation_trainer.evaluate(testing_data, ignore_keys=IGNORE_KEYS)
     distillation_trainer.log_metrics("eval", metrics)
     distillation_trainer.save_metrics("eval", metrics)
+
+    writer.close()
 
     with open(output_path + '/training/'+'config.json', 'x', encoding='utf-8') as f:
         f.write(Args.toJSON())

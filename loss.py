@@ -15,6 +15,7 @@ class DistillationTrainer(Trainer):
                  use_attribution_loss=False,
                  use_attention_loss=False,
                  use_hidden_loss=False,
+                 writer=None,
                  *args, **kwargs):
         super().__init__(model=student_model, *args, **kwargs)
         self.teacher = teacher_model
@@ -43,6 +44,8 @@ class DistillationTrainer(Trainer):
         self.attribution_loss_fn = nn.MSELoss()
 
         self.printed = False
+        self.global_steps = 0
+        self.writer = writer
 
     def _distillation_loss(self, teacher_output, student_output):
 
@@ -79,15 +82,12 @@ class DistillationTrainer(Trainer):
     ##  For distillation with distillation tokens, remove the distil token from the tensor
     ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/task_distill.py#L935
     def _attn_loss(self, teacher_atts, student_atts):
-        # return torch.zeros(1)
         att_loss = 0.
         loss_mse = nn.MSELoss()
-
         teacher_layer_num = len(teacher_atts)
         student_layer_num = len(student_atts)
         assert teacher_layer_num % student_layer_num == 0
         layers_per_block = int(teacher_layer_num / student_layer_num)
-        # layers_per_block = 1
 
         new_teacher_atts = [teacher_atts[i * layers_per_block + layers_per_block - 1]
                             for i in range(student_layer_num)]
@@ -99,10 +99,13 @@ class DistillationTrainer(Trainer):
             teacher_att = torch.where(teacher_att <= -1e2,
                                       torch.zeros_like(teacher_att),
                                       teacher_att)
-            #student_att shape torch.Size([8, 12, 198, 198])
-            # student_att shape torch.Size([8, 12, 197, 197])
-            #TODO is the last extra value is due to atrribution loss? I just removed the second one
-            tmp_loss = loss_mse(student_att[:,:,:1:,:1:], teacher_att)
+
+            teacher_att = teacher_att[:, :, 0, :]
+            student_att = student_att[:, :, 0, :]
+            if self.distillation_token:
+                student_att = student_att[:,:,1:]
+
+            tmp_loss = loss_mse(student_att, teacher_att)
             att_loss += tmp_loss
         return att_loss
 
@@ -195,16 +198,27 @@ class DistillationTrainer(Trainer):
 
         distillation_loss = self._distillation_loss(teacher_output, student_output)
 
+        self.writer.add_scalar('Loss/Student', student_loss, global_step=self.global_steps, walltime=1)
+
+        self.writer.add_scalar('Loss/Distillation', distillation_loss, global_step=self.global_steps, walltime=1)
+
         loss = (1. - self.alpha) * student_loss + self.alpha * distillation_loss
 
         if self.use_attention_loss:
-            loss += self._attn_loss(teacher_output.attentions, student_output.attentions)
-            print(f"l_attn {self._attn_loss(teacher_output.attentions, student_output.attentions)}")
-        if self.use_hidden_loss:
-            loss += self._layer_loss(teacher_output.hidden_states, student_output.hidden_states)
+            attn_loss = self._attn_loss(teacher_output.attentions, student_output.attentions)
+            self.writer.add_scalar('Loss/Attention', attn_loss.item(), global_step=self.global_steps, walltime=1)
+            loss += attn_loss
 
+        if self.use_hidden_loss:
+            hidden_loss = self._layer_loss(teacher_output.hidden_states, student_output.hidden_states)
+            self.writer.add_scalar('Loss/Hidden', hidden_loss.item(), global_step=self.global_steps, walltime=1)
+            loss += hidden_loss
 
         if self.use_attribution_loss:
-            loss += self._attribution_loss(teacher_output.attributions, student_output.attributions)
+            attr_loss = self._attribution_loss(teacher_output.attributions, student_output.attributions)
+            self.writer.add_scalar('Loss/Attribution', attr_loss.item(), global_step=self.global_steps, walltime=1)
+            loss += attr_loss
+
+        self.global_steps += 1
 
         return (loss, student_output) if return_outputs else loss
