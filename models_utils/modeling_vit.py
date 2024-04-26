@@ -214,9 +214,9 @@ class ViTSelfAttention(nn.Module):
             v_norm = torch.linalg.norm(
                 v.transpose(1, 2).reshape(B, attn.shape[2], C), ord=2, dim=2
             )  # value norm of size [B x T]
-            significance_score = attn[:, :, 0].sum(dim=1)  # attention weights of CLS token of size [B x T]
-            significance_score = significance_score * v_norm  # [B x T]
-            significance_score = significance_score[:, 1:]  # [B x T-1]
+            significance_score = attn[:, :, :,].sum(dim=1)  # attention weights of CLS token of size [B x T]
+            significance_score = significance_score * v_norm.unsqueeze(2)  # [B x T]
+            significance_score = significance_score[:, :]  # [B x T-1]
             significance_score = significance_score / significance_score.sum(dim=1, keepdim=True)  # [B x T-1]
 
         return significance_score

@@ -41,8 +41,7 @@ def visualize(Args):
     processor = feature_extractor.from_pretrained(model_name, cache_dir=Args.Visualization.Model.CachePath)
 
     data = pickle.load(open(Args.Visualization.Input + f'/data.pkl', 'rb'), encoding='latin-1')
-
-    label_map = {k: " ".join(v) for k, v in data[0].items()}
+    label_map = {k: ", ".join(v) for k, v in data[0].items()}
 
     model.eval()
     model.to(device)
@@ -56,8 +55,8 @@ def visualize(Args):
 
         for im in images:
 
-            label = im.split('_')[1].split('.')[0]
-            # label = label_map[im.split('/')[-2]]
+            # label = im.split('_')[1].split('.')[0]
+            label = label_map[im.split('/')[-2]]
 
             image = Image.open(im)
 
@@ -68,11 +67,16 @@ def visualize(Args):
             inputs.to(device)
             outputs_1 = model(**inputs, output_attentions=True, output_hidden_states=True, output_norms=True,
                             output_globenc=True)
-
+            # outputs_1 = model(**inputs)
             outputs_2 = model(**inputs, output_ats=True)
             logits = outputs_1.logits
             predicted_class_idx = logits.argmax(-1).item()
-            print(f"Actual: {label.ljust(10, ' ')} Predicted: {model.config.id2label[predicted_class_idx]}")
+            print(f"Actual: {label.ljust(10, ' ')} Predicted: {model.config.id2label[predicted_class_idx]}", end=' ')
+
+            if label in model.config.id2label[predicted_class_idx]:
+                print(f" Correct!")
+            else:
+                print(f" Failed!")
 
             trans_features = []
 
@@ -98,12 +102,12 @@ def visualize(Args):
             img_resized = resize(np.array(image), size=(224, 224), resample=PILImageResampling.BILINEAR)
             grid_size = 224 // factor
 
-            grid_color = [0, 0, 0]
-            img_resized_grid = img_resized.copy()
-            img_resized_grid[:, ::grid_size, :] = grid_color
-            img_resized_grid[::grid_size, :, :] = grid_color
+            # grid_color = [0, 0, 0]
+            # img_resized_grid = img_resized.copy()
+            # img_resized_grid[:, ::grid_size, :] = grid_color
+            # img_resized_grid[::grid_size, :, :] = grid_color
 
-            ax1.imshow(img_resized_grid)
+            ax1.imshow(img_resized)
             ax1.axis('off')
 
             img_resized_feature = img_resized.copy()
@@ -112,8 +116,6 @@ def visualize(Args):
                                                  [ax2, ax3, ax4]):
 
                 attribute_score_per_patch = feature_score(patches)
-
-                ax1.imshow(img_resized_feature)
                 if factor > 14:
                     factor = 14
 
@@ -143,6 +145,20 @@ def visualize(Args):
             for K in results.keys():
                 w.writerow(results[K])
 
+        markers = ['r','g','k','b']
+        marker_idx = 0
+        for acc in accuracies:
+            if acc == 'K':
+                continue
+            acc_list = [results[K][acc] for K in results.keys()]
+            limit = Args.Visualization.Plot.MaskedPerc[-1] + 10
+            plt.plot(np.arange(0, limit, 10), acc_list, markers[marker_idx], marker='o', label=f"{acc}")
+            marker_idx +=1
+        plt.legend()
+        plt.ylabel("Accuracy")
+        plt.xlabel("K %")
+        plt.savefig(outputPath + "masking_accuracies")
+        plt.show()
 
 def plotMaskedCurves(model, processor, images, label_map, K, Args):
     dataset = []
@@ -191,7 +207,6 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
                                              Args)
 
     result["attribution_accuracy"] = attribution_accuracy
-
 
     return result
 
@@ -247,7 +262,7 @@ def process_feature_output_batch(features, type):
         batch_tensor = batch_tensor.permute((1, 0, 2, 3))
     elif type == "ATS":
         batch_tensor = torch.stack([features[i] for i in range(num_layers)])
-        batch_tensor = batch_tensor.permute((1, 0, 2))
+        batch_tensor = batch_tensor.permute((1, 0, 2, 3))
 
     single_image_features = (batch_tensor[i] for i in range(batch_tensor.shape[0]))
     scores = []
