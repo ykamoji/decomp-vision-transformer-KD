@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class DistillationTrainer(Trainer):
     def __init__(self,
                  teacher_model=None,
@@ -46,6 +47,7 @@ class DistillationTrainer(Trainer):
         self.printed = False
         self.global_steps = 0
         self.writer = writer
+        self.current_epoch = 0
 
     def _distillation_loss(self, teacher_output, student_output):
 
@@ -160,6 +162,10 @@ class DistillationTrainer(Trainer):
 
             self.printed = True
 
+    def tb_log(self, key, value):
+        if self.current_epoch != self.state.epoch and self.state.global_step % self.state.logging_steps == 0:
+            self.writer.add_scalar(key, value, global_step=self.state.global_step, walltime=5)
+
     def compute_loss(self, student, inputs, return_outputs=False):
 
         student_inputs = inputs
@@ -169,7 +175,7 @@ class DistillationTrainer(Trainer):
 
         kwargs = {}
         s_kwargs = {}
-        if self.is_in_train:
+        if not return_outputs:
 
             if self.use_hidden_loss:
                 kwargs = {**kwargs, **{"output_hidden_states":True}}
@@ -188,8 +194,8 @@ class DistillationTrainer(Trainer):
 
         student_loss = self._student_loss(student_output, inputs['labels'])
 
-        if not self.is_in_train:
-            return (student_loss, student_output) if return_outputs else student_loss
+        if return_outputs:
+            return student_loss, student_output
 
         with torch.no_grad():
             teacher_output = self.teacher(**inputs, **kwargs)
@@ -198,27 +204,28 @@ class DistillationTrainer(Trainer):
 
         distillation_loss = self._distillation_loss(teacher_output, student_output)
 
-        self.writer.add_scalar('Loss/Student', student_loss, global_step=self.global_steps, walltime=1)
+        self.tb_log('Loss/Student', student_loss)
 
-        self.writer.add_scalar('Loss/Distillation', distillation_loss, global_step=self.global_steps, walltime=1)
+        self.tb_log('Loss/Distillation', distillation_loss)
 
         loss = (1. - self.alpha) * student_loss + self.alpha * distillation_loss
 
         if self.use_attention_loss:
             attn_loss = self._attn_loss(teacher_output.attentions, student_output.attentions)
-            self.writer.add_scalar('Loss/Attention', attn_loss.item(), global_step=self.global_steps, walltime=1)
+            self.tb_log('Loss/Attention', attn_loss.item())
             loss += attn_loss
 
         if self.use_hidden_loss:
             hidden_loss = self._layer_loss(teacher_output.hidden_states, student_output.hidden_states)
-            self.writer.add_scalar('Loss/Hidden', hidden_loss.item(), global_step=self.global_steps, walltime=1)
+            self.tb_log('Loss/Hidden', hidden_loss.item())
             loss += hidden_loss
 
         if self.use_attribution_loss:
             attr_loss = self._attribution_loss(teacher_output.attributions, student_output.attributions)
-            self.writer.add_scalar('Loss/Attribution', attr_loss.item(), global_step=self.global_steps, walltime=1)
+            self.tb_log('Loss/Attribution', attr_loss.item())
             loss += attr_loss
 
-        self.global_steps += 1
+        if self.current_epoch != self.state.epoch:
+            self.current_epoch = self.state.epoch
 
-        return (loss, student_output) if return_outputs else loss
+        return loss
