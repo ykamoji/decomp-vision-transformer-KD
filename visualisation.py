@@ -84,7 +84,8 @@ def visualize(Args):
             for features, feature_type, ax in zip([outputs_1.attributions, outputs_1.attentions, outputs_2.attentions],
                                                   ["Attribution", "Attention", "ATS"],
                                                   [ax1, ax2, ax3]):
-                patches = process_features(features, factor, featureType=feature_type)
+                patches = process_features(features, factor, featureType=feature_type,
+                                           strategies=Args.Visualization.Strategies)
                 trans_features.append(patches)
                 df = pd.DataFrame(patches, columns=np.arange(1, patches.shape[1] + 1), index=range(len(patches), 0, -1))
                 sns.heatmap(df, cmap="Reds", square=False, ax=ax, cbar=False, xticklabels=False)
@@ -160,9 +161,10 @@ def visualize(Args):
         plt.savefig(outputPath + "masking_accuracies")
         plt.show()
 
+
 def plotMaskedCurves(model, processor, images, label_map, K, Args):
     dataset = []
-    pbar = tqdm(images)
+    pbar = tqdm(images[:500:50])
     pbar.set_description("Image Masking (Random)")
     images_downstream = []
     for im in pbar:
@@ -232,7 +234,7 @@ def mask_feature_eval(dataset, model, type, params, K, Args):
                 features = outputs.attentions
             elif type == 'Attribution':
                 features = outputs.attributions
-            feature_scores += process_feature_output_batch(features, type)
+            feature_scores += process_feature_output_batch(features, type, Args.Visualization.Strategies)
 
         feature_scores_nd = np.array(feature_scores)
         np.save(f".feature_{type}_cache", feature_scores_nd)
@@ -251,7 +253,7 @@ def mask_feature_eval(dataset, model, type, params, K, Args):
     return eval_model(masked_attn_dataset, model, type, Args)
 
 
-def process_feature_output_batch(features, type):
+def process_feature_output_batch(features, type, strategies):
     num_layers = len(features)
 
     if type == "Attention":
@@ -267,7 +269,7 @@ def process_feature_output_batch(features, type):
     single_image_features = (batch_tensor[i] for i in range(batch_tensor.shape[0]))
     scores = []
     for image_attn in single_image_features:
-        patches = process_features(image_attn, 14, featureType=type)
+        patches = process_features(image_attn, 14, featureType=type, strategies=strategies)
         attn_scores = feature_score(patches)
         scores.append(attn_scores)
 

@@ -1,7 +1,7 @@
 from abc import ABC
 import numpy as np
 from tqdm.auto import tqdm
-from attribution.attention_flow_abstract import AttentionFlow
+from features.attention_flow_abstract import AttentionFlow
 
 
 class AttentionRollout(AttentionFlow, ABC):

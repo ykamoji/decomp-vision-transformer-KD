@@ -42,7 +42,7 @@ Distillation:
     WeightDecay: 0.0
   UseDistTokens: True
   DistillationType: soft # Set soft for KL divergence loss using probability or hard for cross entropy loss with logits
-  UseAttributionLoss: True
+  UseAttributionLoss: False
   UseAttentionLoss: False
   UseHiddenLoss : False
 
@@ -56,6 +56,7 @@ Visualization:
     Device: 'cpu' # update to cuda or mps for GPU support
   Input: images   # kaggle datasets download -d hieu1344/imagenetsample
   Output: featureOutputs/
+  Strategies: [rollout, skipplus] # rollout plus skipplus
   Features:
     CompareFeatures: False
     ThresholdScore: 3

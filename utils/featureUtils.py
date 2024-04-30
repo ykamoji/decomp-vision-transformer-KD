@@ -3,19 +3,20 @@ import random
 import numpy as np
 import matplotlib.patches as pat
 import matplotlib.pyplot as plt
-from attribution.attention_rollout import AttentionRollout
+from features.attention_rollout import AttentionRollout
+from features.plus import compute_plus, compute_step_plus
 
 
-def process_features(features, factor, featureType):
+def process_features(features, factor, featureType, strategies):
 
     if featureType == 'Attribution':
-        norm_cls = prepare_attributions(features)
+        norm_cls = prepare_attributions(features, strategies)
     elif featureType == 'Attention':
-        norm_cls = prepare_attentions(features)
+        norm_cls = prepare_attentions(features, strategies)
     elif featureType == 'ATS':
-        norm_cls = prepare_ats(features)
+        norm_cls = prepare_ats(features, strategies)
 
-    num_layers = len(features)
+    num_layers = len(norm_cls)
 
     # print(norm_cls.shape)
     # cls = norm_cls[:, 0]
@@ -43,32 +44,48 @@ def process_features(features, factor, featureType):
     return patches
 
 
-def prepare_attributions(attributions):
+def prepare_attributions(attributions, strategies):
     num_layers = len(attributions)
     if type(attributions[0]) is tuple:
         norm_nenc = torch.stack([attributions[i][4] for i in range(num_layers)]).detach().squeeze().cpu().numpy()
     else:
         norm_nenc = attributions.detach().cpu().numpy()
-    return process_common(norm_nenc)
+    return process_common(norm_nenc, strategies)
 
 
-def prepare_attentions(attentions):
+def prepare_attentions(attentions, strategies):
     num_layers = len(attentions)
     attn = torch.stack([attentions[i] for i in range(num_layers)]).detach().squeeze().cpu().numpy()
     norm_attn = attn.mean(axis=1)
-    return process_common(norm_attn)
+    return process_common(norm_attn, strategies)
 
 
-def prepare_ats(adapative):
+def prepare_ats(adapative, strategies):
     num_layers = len(adapative)
     ats = torch.stack([adapative[i] for i in range(num_layers)]).detach().squeeze().cpu().numpy()
-    return process_common(ats)
+    return process_common(ats, strategies)
 
 
+def process_common(attn, strategies):
 
-def process_common(attn):
-    attn = AttentionRollout().compute_flows([attn], disable_tqdm=True, output_hidden_states=True)[0]
-    attn_cls = attn[:, 0, :]
+    attn_processed = None
+    if "rollout" in strategies:
+        attn_processed = AttentionRollout().compute_flows([attn], disable_tqdm=True, output_hidden_states=True)[0]
+
+    if "plus" in strategies:
+        attn_processed_partial = compute_plus(attn)
+        if attn_processed:
+            attn_processed += attn_processed_partial
+        else:
+            attn_processed = attn_processed_partial
+    elif "skipplus" in strategies:
+        attn_processed_partial = compute_step_plus(attn)
+        if attn_processed:
+            attn_processed += attn_processed_partial
+        else:
+            attn_processed = attn_processed_partial
+
+    attn_cls = attn_processed[:, 0, :]
     attn_cls = np.flip(attn_cls, axis=0)
     row_sums = attn_cls.max(axis=1)
     attn_cls = attn_cls / row_sums[:, np.newaxis]
