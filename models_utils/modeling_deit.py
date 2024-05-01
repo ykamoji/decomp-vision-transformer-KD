@@ -158,11 +158,12 @@ class DeiTSelfAttention(nn.Module):
         x = x.view(new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def score_assignment_step(self, attn: torch.Tensor, v: torch.Tensor) -> (torch.Tensor, torch.Tensor):
+    def score_assignment_step(self, attn: torch.Tensor, v: torch.Tensor, logic: int) -> (torch.Tensor, torch.Tensor):
         """
         Token Score Assignment Step.
         :param attn: attention matrix
         :param v: values
+        :param logic: To return cls or all
         :return: sorted significance scores and their corresponding indices
         """
         with torch.no_grad():
@@ -171,9 +172,14 @@ class DeiTSelfAttention(nn.Module):
             v_norm = torch.linalg.norm(
                 v.transpose(1, 2).reshape(B, attn.shape[2], C), ord=2, dim=2
             )  # value norm of size [B x T]
-            significance_score = attn[:, :, 0].sum(dim=1)  # attention weights of CLS token of size [B x T]
-            significance_score = significance_score * v_norm  # [B x T]
-            significance_score = significance_score[:, 1:]  # [B x T-1]
+            if logic == 1:
+                significance_score = attn[:, :, 0].sum(dim=1)  # attention weights of CLS token of size [B x T]
+                significance_score = significance_score * v_norm  # [B x T]
+                significance_score = significance_score[:, 1:]  # [B x T-1]
+            else:
+                significance_score = attn[:, :, :, ].sum(dim=1)  # attention weights of all token of size [B x T]
+                significance_score = significance_score * v_norm.unsqueeze(2)  # [B x T]
+
             significance_score = significance_score / significance_score.sum(dim=1, keepdim=True)  # [B x T-1]
 
         return significance_score
@@ -181,7 +187,7 @@ class DeiTSelfAttention(nn.Module):
     def forward(
         self, hidden_states, head_mask: Optional[torch.Tensor] = None, output_attentions: bool = False,
         output_norms: Optional[bool] = False, output_globenc : Optional[bool] = False,
-        output_ats: Optional[bool] = False,
+        output_ats: Optional[int] = 0,
     ) -> Union[Tuple[torch.Tensor, torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
         mixed_query_layer = self.query(hidden_states)
 
@@ -211,7 +217,7 @@ class DeiTSelfAttention(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(new_context_layer_shape)
 
-        if output_ats:
+        if output_ats >=1:
             ats_score = self.score_assignment_step(attention_probs, value_layer)
             outputs = (context_layer, ats_score)
             return outputs
@@ -343,7 +349,7 @@ class DeiTLayer(nn.Module):
         output_attentions: bool = False,
         output_norms: Optional[bool] = False,
         output_globenc: Optional[bool] = False,
-        output_ats: Optional[bool] = False,
+        output_ats: Optional[int] = 0,
     ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor]]:
         self_attention_outputs = self.attention(
             self.layernorm_before(hidden_states),  # in DeiT, layernorm is applied before self-attention
@@ -535,10 +541,10 @@ class DeiTEncoder(nn.Module):
         return_dict: bool = True,
         output_norms: Optional[bool] = False,
         output_globenc: Optional[bool] = None,
-        output_ats: Optional[bool] = False,
+        output_ats: Optional[int] = 0,
     ) -> Union[tuple, BaseModelOutput]:
         all_hidden_states = () if output_hidden_states else None
-        all_self_attentions = () if output_attentions or output_ats else None
+        all_self_attentions = () if output_attentions or output_ats >= 1 else None
         previous_value_layer = None
         previous_hidden_input = None
         previous_pre_ln_states = None
@@ -578,7 +584,7 @@ class DeiTEncoder(nn.Module):
 
             hidden_states = layer_outputs[0]
 
-            if output_attentions or output_ats:
+            if output_attentions or output_ats >= 1:
                 all_self_attentions = all_self_attentions + (layer_outputs[1],)
 
         if output_hidden_states:
@@ -705,7 +711,7 @@ class DeiTModel(DeiTPreTrainedModel):
         return_dict: Optional[bool] = None,
         output_norms: Optional[bool] = None,
         output_globenc: Optional[bool] = None,
-        output_ats: Optional[bool] = False,
+        output_ats: Optional[int] = 0,
     ) -> Union[Tuple, BaseModelOutputWithPooling]:
         r"""
         bool_masked_pos (`torch.BoolTensor` of shape `(batch_size, num_patches)`, *optional*):
@@ -944,7 +950,7 @@ class DeiTForImageClassification(DeiTPreTrainedModel):
         return_dict: Optional[bool] = None,
         output_norms: Optional[bool] = False,
         output_globenc: Optional[bool] = False,
-        output_ats: Optional[bool] = False,
+        output_ats: Optional[int] = 0,
         is_student: Optional[bool] = False,
     ) -> Union[tuple, ImageClassifierOutput]:
         r"""
@@ -1124,7 +1130,7 @@ class DeiTForImageClassificationWithTeacher(DeiTPreTrainedModel):
         return_dict: Optional[bool] = None,
         output_norms: Optional[bool] = False,
         output_globenc: Optional[bool] = False,
-        output_ats: Optional[bool] = False,
+        output_ats: Optional[int] = 0,
         is_student: Optional[bool] = False,
     ) -> Union[tuple, DeiTForImageClassificationWithTeacherOutput]:
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict

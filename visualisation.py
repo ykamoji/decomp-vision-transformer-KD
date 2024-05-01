@@ -15,7 +15,7 @@ from models_utils import ViTForImageClassification, DeiTForImageClassificationWi
 from transformers import ViTImageProcessor, DeiTImageProcessor
 from transformers.image_transforms import resize
 from transformers.image_utils import PILImageResampling
-from utils.featureUtils import process_features, feature_score, mask_image, plot_feature_scores
+from utils.featureUtils import process_features, feature_score, mask_image, plot_feature_scores, get_device
 from torch.utils.data import DataLoader
 
 warnings.filterwarnings('ignore')
@@ -25,7 +25,6 @@ def visualize(Args):
     outputPath = Args.Visualization.Output
 
     images = glob.glob(f"{Args.Visualization.Input}/*/*.JPEG")
-    device = Args.Visualization.Model.Device
 
     # model_path = get_model_path('FineTuned', Args)
     model_name = Args.Visualization.Model.Name
@@ -44,7 +43,7 @@ def visualize(Args):
     label_map = {k: ", ".join(v) for k, v in data[0].items()}
 
     model.eval()
-    model.to(device)
+    model.to(get_device())
     factor = 14
 
     if Args.Visualization.Features.CompareFeatures:
@@ -61,14 +60,21 @@ def visualize(Args):
             image = Image.open(im)
 
             if np.array(image).ndim < 3:
+                print(f"Skipping {im} due to incorrect image dimensions")
+                continue
+            try:
+                inputs = processor(images=image, return_tensors="pt")
+            except Exception as e:
+                print(f"Error: {e}\nSkipping {im}")
                 continue
 
-            inputs = processor(images=image, return_tensors="pt")
-            inputs.to(device)
+            inputs = inputs.to(get_device())
+
             outputs_1 = model(**inputs, output_attentions=True, output_hidden_states=True, output_norms=True,
-                            output_globenc=True)
-            # outputs_1 = model(**inputs)
-            outputs_2 = model(**inputs, output_ats=True)
+                              output_globenc=True)
+
+            logic = 1 if Args.Visualization.UseOnlyCLSForATS else 2
+            outputs_2 = model(**inputs, output_ats=logic)
             logits = outputs_1.logits
             predicted_class_idx = logits.argmax(-1).item()
             print(f"Actual: {label.ljust(10, ' ')} Predicted: {model.config.id2label[predicted_class_idx]}", end=' ')
@@ -135,7 +141,7 @@ def visualize(Args):
         results = {}
 
         for K in Args.Visualization.Plot.MaskedPerc:
-            if K > 10: time.sleep(5)
+            if K > 10: time.sleep(1)
             print(f"\n------ Evaluating for K={K}% -------\n")
             results[K] = plotMaskedCurves(model, processor, images, label_map, K, Args)
 
@@ -146,19 +152,22 @@ def visualize(Args):
             for K in results.keys():
                 w.writerow(results[K])
 
-        markers = ['r','g','k','b']
+        markers = ['r', 'g', 'k', 'b']
         marker_idx = 0
+        plt.style.use('seaborn-v0_8-darkgrid')
         for acc in accuracies:
             if acc == 'K':
                 continue
             acc_list = [results[K][acc] for K in results.keys()]
             limit = Args.Visualization.Plot.MaskedPerc[-1] + 10
-            plt.plot(np.arange(0, limit, 10), acc_list, markers[marker_idx], marker='o', label=f"{acc}")
-            marker_idx +=1
+            plt.plot(np.arange(0, limit, 10), acc_list, markers[marker_idx], marker='', label=f"{acc}")
+            marker_idx += 1
         plt.legend()
         plt.ylabel("Accuracy")
-        plt.xlabel("K %")
-        plt.savefig(outputPath + "masking_accuracies")
+        plt.xlabel("Masking K %")
+        plt.title('Strategy: ' + ','.join(Args.Visualization.Strategies))
+        plt.savefig(outputPath + f"masking_{','.join(Args.Visualization.Strategies)}_accuracies",
+                    bbox_inches='tight', edgecolor='auto')
         plt.show()
 
 
@@ -173,38 +182,44 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
         image = Image.open(im)
         image_nd = np.array(image)
         if image_nd.ndim < 3:
+            print(f"Skipping {im} due to incorrect image dimensions")
             continue
-        processed_image = processor(images=image, return_tensors="pt")
+        try:
+            processed_image = processor(images=image, return_tensors="pt")
+        except Exception as e:
+            print(f"Error: {e}\nSkipping {im}")
+            continue
         processed_image = processed_image.data['pixel_values'][0]
         images_downstream.append({'pixel_values': processed_image, 'label': label})
         masked_image = mask_image(processed_image, type='random', mask_perc=K)
         dataset.append({'pixel_values': masked_image, 'label': label})
 
-    result = {"K":K}
+    result = {"K": K}
 
     random_accuracy = eval_model(dataset, model, "Random", Args)
 
     result["random_accuracy"] = random_accuracy
 
     attention_accuracy = mask_feature_eval(images_downstream, model,
-                                             'Attention',
-                                             {"output_attentions": True},
-                                             K,
-                                             Args)
+                                           'Attention',
+                                           {"output_attentions": True},
+                                           K,
+                                           Args)
 
     result["attention_accuracy"] = attention_accuracy
 
+    logic = 1 if Args.Visualization.UseOnlyCLSForATS else 2
     ats_accuracy = mask_feature_eval(images_downstream, model,
                                      'ATS',
-                                     {"output_ats": True},
+                                     {"output_ats": logic},
                                      K,
                                      Args)
     result["ats_accuracy"] = ats_accuracy
 
     attribution_accuracy = mask_feature_eval(images_downstream, model,
-                                               'Attribution',
+                                             'Attribution',
                                              {"output_attentions": True, "output_hidden_states": True,
-                                                "output_norms": True, "output_globenc": True},
+                                              "output_norms": True, "output_globenc": True},
                                              K,
                                              Args)
 
@@ -214,10 +229,10 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
 
 
 def mask_feature_eval(dataset, model, type, params, K, Args):
-
     cached = False
-    if os.path.exists(f".feature_{type}_cache.npy"):
-        feature_scores_cache = np.load(f".feature_{type}_cache.npy")
+    cache_name = f"feature_{type}_{','.join(Args.Visualization.Strategies)}_cache.npy"
+    if os.path.exists(cache_name):
+        feature_scores_cache = np.load(cache_name)
         cached = True
 
     if cached:
@@ -228,7 +243,7 @@ def mask_feature_eval(dataset, model, type, params, K, Args):
         pbar.set_description(f"Eval {type} Scores")
         feature_scores = []
         for batch in pbar:
-            inputs = {'pixel_values': batch['pixel_values'].to(Args.Visualization.Model.Device)}
+            inputs = {'pixel_values': batch['pixel_values'].to(get_device())}
             outputs = model(**inputs, **params)
             if type == 'Attention' or type == 'ATS':
                 features = outputs.attentions
@@ -237,7 +252,7 @@ def mask_feature_eval(dataset, model, type, params, K, Args):
             feature_scores += process_feature_output_batch(features, type, Args.Visualization.Strategies)
 
         feature_scores_nd = np.array(feature_scores)
-        np.save(f".feature_{type}_cache", feature_scores_nd)
+        np.save(cache_name, feature_scores_nd)
 
     masked_attn_dataset = []
     pbar = tqdm(range(len(dataset)))
@@ -256,16 +271,13 @@ def mask_feature_eval(dataset, model, type, params, K, Args):
 def process_feature_output_batch(features, type, strategies):
     num_layers = len(features)
 
-    if type == "Attention":
+    if type == "Attention" or type == "ATS":
         batch_tensor = torch.stack([features[i] for i in range(num_layers)])
-        batch_tensor = batch_tensor.permute((1, 0, 2, 3, 4))
     elif type == "Attribution":
         batch_tensor = torch.stack([features[i][4] for i in range(num_layers)])
-        batch_tensor = batch_tensor.permute((1, 0, 2, 3))
-    elif type == "ATS":
-        batch_tensor = torch.stack([features[i] for i in range(num_layers)])
-        batch_tensor = batch_tensor.permute((1, 0, 2, 3))
 
+    shape = (1, 0,) + tuple(range(2, batch_tensor.ndim))
+    batch_tensor = batch_tensor.permute(shape)
     single_image_features = (batch_tensor[i] for i in range(batch_tensor.shape[0]))
     scores = []
     for image_attn in single_image_features:
@@ -282,7 +294,7 @@ def eval_model(dataset, model, strategy, Args):
     progress, masking_accuracy = 0, 0
     pbar.set_description(f"Eval {strategy}")
     for batch in pbar:
-        inputs = {'pixel_values': batch['pixel_values'].to(Args.Visualization.Model.Device)}
+        inputs = {'pixel_values': batch['pixel_values'].to(get_device())}
         outputs = model(**inputs)
         logits = outputs.logits
         labels = batch['label']

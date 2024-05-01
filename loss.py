@@ -2,6 +2,7 @@ from transformers import Trainer
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from utils.featureUtils import get_device
 
 
 class DistillationTrainer(Trainer):
@@ -23,13 +24,7 @@ class DistillationTrainer(Trainer):
         self.student = student_model
         self.distillation_loss_fun = nn.KLDivLoss(reduction="sum", log_target=True)
 
-        device = 'cpu'
-        if torch.cuda.is_available():
-            device = 'cuda'
-        elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
-            device = 'mps'
-
-        device = torch.device(device)
+        device = get_device()
         self.teacher.to(device)
         self.teacher.eval()
         self.temperature = temperature

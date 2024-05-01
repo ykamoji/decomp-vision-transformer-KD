@@ -53,10 +53,10 @@ Visualization:
     CachePath: model/
     OutputPath: tuned-model/
     Index: -1
-    Device: 'cpu' # update to cuda or mps for GPU support
   Input: images   # kaggle datasets download -d hieu1344/imagenetsample
   Output: featureOutputs/
-  Strategies: [rollout, skipplus] # rollout plus skipplus
+  UseOnlyCLSForATS: False
+  Strategies: [plus] # Options: rollout plus skipplus_first skipplus_last And/Or in combination
   Features:
     CompareFeatures: False
     ThresholdScore: 3
@@ -64,6 +64,6 @@ Visualization:
     Save: False
   Plot:
     PlotMaskedCurves: False
-    ThresholdScore: 2
+    ThresholdScore: 0 # 0 means everything will be considered. >=1 means only the important patches will be chosen.
     BatchSize: 2
     MaskedPerc: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100] # in %

@@ -7,6 +7,16 @@ from features.attention_rollout import AttentionRollout
 from features.plus import compute_plus, compute_step_plus
 
 
+def get_device():
+    device = 'cpu'
+    if torch.cuda.is_available():
+        device = 'cuda'
+    elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        device = 'mps'
+
+    return torch.device(device)
+
+
 def process_features(features, factor, featureType, strategies):
 
     if featureType == 'Attribution':
@@ -23,6 +33,7 @@ def process_features(features, factor, featureType, strategies):
     # print(cls.shape)
 
     others = norm_cls[:, 1:]
+
     # print(others.shape)
     patches = []
     step = 196 // (factor ** 2)
@@ -50,45 +61,56 @@ def prepare_attributions(attributions, strategies):
         norm_nenc = torch.stack([attributions[i][4] for i in range(num_layers)]).detach().squeeze().cpu().numpy()
     else:
         norm_nenc = attributions.detach().cpu().numpy()
-    return process_common(norm_nenc, strategies)
+    return process_common(norm_nenc, strategies, type='Attributions')
 
 
 def prepare_attentions(attentions, strategies):
     num_layers = len(attentions)
     attn = torch.stack([attentions[i] for i in range(num_layers)]).detach().squeeze().cpu().numpy()
     norm_attn = attn.mean(axis=1)
-    return process_common(norm_attn, strategies)
+    return process_common(norm_attn, strategies, type='Attentions')
 
 
 def prepare_ats(adapative, strategies):
     num_layers = len(adapative)
     ats = torch.stack([adapative[i] for i in range(num_layers)]).detach().squeeze().cpu().numpy()
-    return process_common(ats, strategies)
+    return process_common(ats, strategies, type='ATS')
 
 
-def process_common(attn, strategies):
+def process_common(attn, strategies, type):
 
     attn_processed = None
     if "rollout" in strategies:
-        attn_processed = AttentionRollout().compute_flows([attn], disable_tqdm=True, output_hidden_states=True)[0]
+        if type == 'ATS' and attn.ndim == 2:
+            attn_rollout = attn
+        else:
+            attn_rollout = AttentionRollout().compute_flows([attn], disable_tqdm=True, output_hidden_states=True)[0]
+        attn_processed = attn_rollout
 
     if "plus" in strategies:
-        attn_processed_partial = compute_plus(attn)
+        attn_plus = compute_plus(attn)
         if attn_processed:
-            attn_processed += attn_processed_partial
+            attn_processed += attn_plus
         else:
-            attn_processed = attn_processed_partial
-    elif "skipplus" in strategies:
-        attn_processed_partial = compute_step_plus(attn)
-        if attn_processed:
-            attn_processed += attn_processed_partial
-        else:
-            attn_processed = attn_processed_partial
+            attn_processed = attn_plus
 
-    attn_cls = attn_processed[:, 0, :]
-    attn_cls = np.flip(attn_cls, axis=0)
-    row_sums = attn_cls.max(axis=1)
-    attn_cls = attn_cls / row_sums[:, np.newaxis]
+    if "skipplus_first" in strategies or "skipplus_last" in strategies:
+        last = "skipplus_last" in strategies
+        attn_skipplus = compute_step_plus(attn, last)
+        if attn_processed:
+            attn_processed += attn_skipplus
+        else:
+            attn_processed = attn_skipplus
+
+    if attn_processed.ndim > 2:
+        attn_cls = attn_processed[:, 0, :]
+        attn_cls = np.flip(attn_cls, axis=0)
+        row_sums = attn_cls.max(axis=1)
+        attn_cls = attn_cls / row_sums[:, np.newaxis]
+    else:
+        attn_cls = attn_processed
+        attn_cls = np.flip(attn_cls, axis=0)
+
     return attn_cls
 
 
