@@ -60,12 +60,12 @@ def visualize(Args):
             image = Image.open(im)
 
             if np.array(image).ndim < 3:
-                print(f"Skipping {im} due to incorrect image dimensions")
+                # print(f"Skipping {im} due to incorrect image dimensions")
                 continue
             try:
                 inputs = processor(images=image, return_tensors="pt")
             except Exception as e:
-                print(f"Error: {e}\nSkipping {im}")
+                # print(f"Error: {e}\nSkipping {im}")
                 continue
 
             inputs = inputs.to(get_device())
@@ -165,7 +165,7 @@ def visualize(Args):
         plt.legend()
         plt.ylabel("Accuracy")
         plt.xlabel("Masking K %")
-        plt.title('Strategy: ' + ','.join(Args.Visualization.Strategies))
+        # plt.title('Strategy: ' + ','.join(Args.Visualization.Strategies))
         plt.savefig(outputPath + f"masking_{','.join(Args.Visualization.Strategies)}_accuracies",
                     bbox_inches='tight', edgecolor='auto')
         plt.show()
@@ -182,12 +182,12 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
         image = Image.open(im)
         image_nd = np.array(image)
         if image_nd.ndim < 3:
-            print(f"Skipping {im} due to incorrect image dimensions")
+            # print(f"Skipping {im} due to incorrect image dimensions")
             continue
         try:
             processed_image = processor(images=image, return_tensors="pt")
         except Exception as e:
-            print(f"Error: {e}\nSkipping {im}")
+            # print(f"Error: {e}\nSkipping {im}")
             continue
         processed_image = processed_image.data['pixel_values'][0]
         images_downstream.append({'pixel_values': processed_image, 'label': label})

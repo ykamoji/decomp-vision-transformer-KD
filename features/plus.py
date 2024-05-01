@@ -9,7 +9,7 @@ def compute_plus(att_matrix):
     return np.array([att_processed])
 
 
-def compute_step_plus(att_matrix, last=True):
+def compute_skip_plus(att_matrix, last=True):
     att_processed = np.empty_like(att_matrix[0])
     num_layers = att_matrix.shape[0]
 

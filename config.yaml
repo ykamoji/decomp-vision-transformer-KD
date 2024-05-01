@@ -55,7 +55,7 @@ Visualization:
     Index: -1
   Input: images   # kaggle datasets download -d hieu1344/imagenetsample
   Output: featureOutputs/
-  UseOnlyCLSForATS: False
+  UseOnlyCLSForATS: True
   Strategies: [plus] # Options: rollout plus skipplus_first skipplus_last And/Or in combination
   Features:
     CompareFeatures: False

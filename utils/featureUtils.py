@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.patches as pat
 import matplotlib.pyplot as plt
 from features.attention_rollout import AttentionRollout
-from features.plus import compute_plus, compute_step_plus
+from features.plus import compute_plus, compute_skip_plus
 
 
 def get_device():
@@ -96,7 +96,7 @@ def process_common(attn, strategies, type):
 
     if "skipplus_first" in strategies or "skipplus_last" in strategies:
         last = "skipplus_last" in strategies
-        attn_skipplus = compute_step_plus(attn, last)
+        attn_skipplus = compute_skip_plus(attn, last)
         if attn_processed:
             attn_processed += attn_skipplus
         else:
