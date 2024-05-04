@@ -260,14 +260,22 @@ class ViTSelfAttention(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(new_context_layer_shape)
 
+        ats_outputs = None
         if output_ats >= 1:
             ats_score = self.score_assignment_step(attention_probs, value_layer, output_ats)
-            outputs = (context_layer, ats_score)
-            return outputs
+            ats_outputs = (context_layer, ats_score)
 
+        attr_outputs = None
         if output_norms or output_globenc:
-            outputs = (context_layer, attention_probs, value_layer)
+            attr_outputs = (context_layer, attention_probs, value_layer)
+
+        if ats_outputs and attr_outputs:
+            outputs = attr_outputs + (ats_outputs[1],)
             return outputs
+        elif ats_outputs:
+            return ats_outputs
+        elif attr_outputs:
+            return attr_outputs
 
         outputs = (context_layer, attention_probs) if output_attentions else (context_layer,)
 
@@ -582,7 +590,8 @@ class ViTEncoder(nn.Module):
             output_ats: Optional[int] = 0,
     ) -> Union[tuple, BaseModelOutput]:
         all_hidden_states = () if output_hidden_states else None
-        all_self_attentions = () if output_attentions or output_ats >= 1 else None
+        all_self_attentions = () if output_attentions else None
+        all_ats_attentions = () if output_ats >= 1 else None
         previous_value_layer = None
         previous_hidden_input = None
         previous_pre_ln_states = None
@@ -615,14 +624,21 @@ class ViTEncoder(nn.Module):
 
                 norms_outputs = norms_outputs + (norm_output,)
 
-            if output_norms or output_globenc:
+            if output_ats >= 1 and (output_norms or output_globenc):
+                previous_value_layer = layer_outputs[2]
+                previous_pre_ln_states = layer_outputs[4]
+                previous_hidden_input = hidden_states
+                all_ats_attentions = all_ats_attentions + (layer_outputs[3],)
+            elif output_norms or output_globenc:
                 previous_value_layer = layer_outputs[2]
                 previous_pre_ln_states = layer_outputs[3]
                 previous_hidden_input = hidden_states
+            elif output_ats >= 1:
+                all_ats_attentions = all_ats_attentions + (layer_outputs[1],)
 
             hidden_states = layer_outputs[0]
 
-            if output_attentions or output_ats >= 1:
+            if output_attentions:
                 all_self_attentions = all_self_attentions + (layer_outputs[1],)
 
         if output_hidden_states:
@@ -636,7 +652,8 @@ class ViTEncoder(nn.Module):
             hidden_states=all_hidden_states,
             attentions=all_self_attentions,
             norms=norms_outputs,
-            last_value_layer=previous_value_layer
+            last_value_layer=previous_value_layer,
+            ats_attentions=all_ats_attentions
         )
 
 
@@ -833,7 +850,8 @@ class ViTModel(ViTPreTrainedModel):
             pooler_output=pooled_output,
             hidden_states=encoder_outputs.hidden_states,
             attentions=encoder_outputs.attentions,
-            attributions=final_norms
+            attributions=final_norms,
+            ats_attentions=encoder_outputs.ats_attentions
         )
 
 
@@ -1097,5 +1115,6 @@ class ViTForImageClassification(ViTPreTrainedModel):
             logits=logits,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
-            attributions=outputs.attributions if not transformed_attribution else transformed_attribution
+            attributions=outputs.attributions if not transformed_attribution else transformed_attribution,
+            ats_attentions=outputs.ats_attentions
         )

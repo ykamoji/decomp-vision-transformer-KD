@@ -70,12 +70,9 @@ def visualize(Args):
 
             inputs = inputs.to(get_device())
 
-            outputs_1 = model(**inputs, output_attentions=True, output_hidden_states=True, output_norms=True,
-                              output_globenc=True)
-
-            logic = 1 if Args.Visualization.UseOnlyCLSForATS else 2
-            outputs_2 = model(**inputs, output_ats=logic)
-            logits = outputs_1.logits
+            outputs = model(**inputs, output_attentions=True, output_hidden_states=True, output_norms=True,
+                              output_globenc=True, output_ats = 1 if Args.Visualization.UseOnlyCLSForATS else 2)
+            logits = outputs.logits
             predicted_class_idx = logits.argmax(-1).item()
             print(f"Actual: {label.ljust(10, ' ')} Predicted: {model.config.id2label[predicted_class_idx]}", end=' ')
 
@@ -87,7 +84,7 @@ def visualize(Args):
             trans_features = []
 
             fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(14, 7))
-            for features, feature_type, ax in zip([outputs_1.attributions, outputs_1.attentions, outputs_2.attentions],
+            for features, feature_type, ax in zip([outputs.attributions, outputs.attentions, outputs.ats_attentions],
                                                   ["Attribution", "Attention", "ATS"],
                                                   [ax1, ax2, ax3]):
                 patches = process_features(features, factor, featureType=feature_type,
@@ -173,7 +170,7 @@ def visualize(Args):
 
 def plotMaskedCurves(model, processor, images, label_map, K, Args):
     dataset = []
-    pbar = tqdm(images)
+    pbar = tqdm(images[:5000:50])
     pbar.set_description("Image Masking (Random)")
     images_downstream = []
     for im in pbar:
@@ -245,10 +242,12 @@ def mask_feature_eval(dataset, model, type, params, K, Args):
         for batch in pbar:
             inputs = {'pixel_values': batch['pixel_values'].to(get_device())}
             outputs = model(**inputs, **params)
-            if type == 'Attention' or type == 'ATS':
+            if type == 'Attention':
                 features = outputs.attentions
             elif type == 'Attribution':
                 features = outputs.attributions
+            elif type == 'ATS':
+                features = outputs.ats_attentions
             feature_scores += process_feature_output_batch(features, type, Args.Visualization.Strategies)
 
         feature_scores_nd = np.array(feature_scores)

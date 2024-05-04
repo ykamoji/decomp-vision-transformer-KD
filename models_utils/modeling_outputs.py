@@ -29,6 +29,7 @@ class BaseModelOutput(ModelOutput):
     attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
     norms: Optional[Tuple[torch.FloatTensor, ...]] = None
     last_value_layer: torch.FloatTensor = None
+    ats_attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
 
 
 @dataclass
@@ -62,6 +63,7 @@ class BaseModelOutputWithPooling(ModelOutput):
     hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
     attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
     attributions: Optional[Tuple[torch.FloatTensor, ...]] = None
+    ats_attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
 
 
 
@@ -92,3 +94,4 @@ class ImageClassifierOutput(ModelOutput):
     hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
     attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
     attributions: Optional[Tuple[torch.FloatTensor, ...]] = None
+    ats_attentions: Optional[Tuple[torch.FloatTensor, ...]] = None

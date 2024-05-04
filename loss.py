@@ -17,6 +17,7 @@ class DistillationTrainer(Trainer):
                  use_attribution_loss=False,
                  use_attention_loss=False,
                  use_hidden_loss=False,
+                 use_ats_loss=False,
                  writer=None,
                  *args, **kwargs):
         super().__init__(model=student_model, *args, **kwargs)
@@ -37,7 +38,9 @@ class DistillationTrainer(Trainer):
         self.use_attribution_loss = use_attribution_loss
         self.use_attention_loss = use_attention_loss
         self.use_hidden_loss = use_hidden_loss
+        self.use_ats_loss = use_ats_loss
         self.attribution_loss_fn = nn.MSELoss()
+        self.ats_loss_fn = nn.MSELoss()
 
         self.printed = False
         self.global_steps = 0
@@ -109,8 +112,8 @@ class DistillationTrainer(Trainer):
     def _process_attribution(self, attr):
         num_layers = len(attr)
         attribution = torch.stack([attr[i][4] for i in range(num_layers)]).squeeze()
-        if attribution.ndim == 3: attribution = attribution.unsqueeze(0)
-        attribution = attribution / attribution.max(dim=3)[0].unsqueeze(3)
+        # if attribution.ndim == 3: attribution = attribution.unsqueeze(0)
+        # attribution = attribution / attribution.max(dim=3)[0].unsqueeze(3)
         return attribution
 
     def _attribution_loss(self, teacher_attr, student_attr):
@@ -128,11 +131,23 @@ class DistillationTrainer(Trainer):
 
         return self.attribution_loss_fn(teacher_attr, student_attr)
 
+    def _ats_loss(self, teacher_ats, student_ats):
+        num_layers = len(teacher_ats)
+        teacher_ats = torch.stack([teacher_ats[i] for i in range(num_layers)]).squeeze()
+
+        num_layers = len(student_ats)
+        student_ats = torch.stack([student_ats[i] for i in range(num_layers)]).squeeze()
+
+        if self.distillation_token:
+            student_ats = student_ats[:,:,1:]
+
+        return self.ats_loss_fn(teacher_ats, student_ats)
+
     def _print_layer_shapes(self, teacher_output, student_output):
 
         if not self.printed:
 
-            for model_name, logits, hidden_layers, attn_layers, attr_layers in zip(["Teacher", "Student"],
+            for model_name, logits, hidden_layers, attn_layers, attr_layers, ats_layers in zip(["Teacher", "Student"],
                                                                       [teacher_output.logits,
                                                                        student_output.logits],
                                                                       [teacher_output.hidden_states,
@@ -140,7 +155,9 @@ class DistillationTrainer(Trainer):
                                                                       [teacher_output.attentions,
                                                                        student_output.attentions],
                                                                       [teacher_output.attributions,
-                                                                       student_output.attributions]):
+                                                                       student_output.attributions],
+                                                                      [teacher_output.ats_attentions,
+                                                                       student_output.ats_attentions]):
                 print(f"\n{model_name}:")
                 print(f"Logits Shape = {logits.shape}")
 
@@ -152,6 +169,9 @@ class DistillationTrainer(Trainer):
 
                 if self.use_attribution_loss:
                     print(f"Attributions Layers:\nDepth = {len(attr_layers)}\nShape = {attr_layers[0][4].shape}")
+
+                if self.use_ats_loss:
+                    print(f"ATS Layers:\nDepth = {len(ats_layers)}\nShape = {ats_layers[0].shape}")
 
             print("\n")
 
@@ -182,8 +202,11 @@ class DistillationTrainer(Trainer):
                 kwargs = {**kwargs,**{"output_hidden_states":True, "output_attentions": True,
                                       "output_norms": True, "output_globenc": True}}
 
+            if self.use_ats_loss:
+                kwargs = {**kwargs, **{"output_ats":1}}
+
             # s_kwargs = {**kwargs, **{"is_student":True}}
-            s_kwargs  = kwargs
+            s_kwargs = kwargs
 
         student_output = self.student(**student_inputs, **s_kwargs)
 
@@ -219,6 +242,11 @@ class DistillationTrainer(Trainer):
             attr_loss = self._attribution_loss(teacher_output.attributions, student_output.attributions)
             self.tb_log('Loss/Attribution', attr_loss.item())
             loss += attr_loss
+
+        if self.use_ats_loss:
+            ats_loss = self._ats_loss(teacher_output.ats_attentions, student_output.ats_attentions)
+            self.tb_log('Loss/ATS', ats_loss.item())
+            loss += ats_loss
 
         if self.current_epoch != self.state.epoch:
             self.current_epoch = self.state.epoch
