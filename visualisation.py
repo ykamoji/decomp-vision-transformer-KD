@@ -170,7 +170,7 @@ def visualize(Args):
 
 def plotMaskedCurves(model, processor, images, label_map, K, Args):
     dataset = []
-    pbar = tqdm(images[:5000:50])
+    pbar = tqdm(images)
     pbar.set_description("Image Masking (Random)")
     images_downstream = []
     for im in pbar:
