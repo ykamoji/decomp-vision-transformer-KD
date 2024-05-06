@@ -72,14 +72,37 @@ class DistillationTrainer(Trainer):
         else:
             return student_output.loss
 
-    ## TODO: MSE loss for the layers
-    ##  For distillation with distillation tokens, remove the distil token from the tensor
     ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/task_distill.py#L935
     def _layer_loss(self, teacher_layers, student_layers):
-        return 0
+        layer_loss = 0.
+        loss_mse = nn.MSELoss()
 
-    ## TODO: MSE loss for the attn
-    ##  For distillation with distillation tokens, remove the distil token from the tensor
+        teacher_layer_num = len(teacher_layers)
+        student_layer_num = len(student_layers)
+        assert teacher_layer_num % student_layer_num == 0
+        layers_per_block = int(teacher_layer_num / student_layer_num)
+        # layers_per_block = 1
+
+        new_teacher_layers = [
+            teacher_layers[i * layers_per_block + layers_per_block - 1]
+            for i in range(student_layer_num)]
+
+        for student_layer, teacher_layer in zip(student_layers, new_teacher_layers):
+            student_layer = torch.where(student_layer <= -1e2,
+                                        torch.zeros_like(student_layer),
+                                        student_layer)
+            teacher_layer = torch.where(teacher_layer <= -1e2,
+                                        torch.zeros_like(teacher_layer),
+                                        teacher_layer)
+
+            if self.distillation_token:
+                tmp_loss = loss_mse(student_layer[:, :1:, :], teacher_layer)
+            else:
+                tmp_loss = loss_mse(student_layer[:, :, :], teacher_layer)
+            layer_loss += tmp_loss
+
+        return layer_loss
+
     ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/task_distill.py#L935
     def _attn_loss(self, teacher_atts, student_atts):
         att_loss = 0.
