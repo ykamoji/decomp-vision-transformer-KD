@@ -751,7 +751,6 @@ class DeiTModel(DeiTPreTrainedModel):
         # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
         head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
 
-        # TODO: maybe have a cleaner way to cast the input (from `ImageProcessor` side?)
         expected_dtype = self.embeddings.patch_embeddings.projection.weight.dtype
         if pixel_values.dtype != expected_dtype:
             pixel_values = pixel_values.to(expected_dtype)
@@ -953,6 +952,8 @@ class DeiTForImageClassification(DeiTPreTrainedModel):
 
         self.attribution_classifier = nn.Linear(atten_size + 1, atten_size + 1)
 
+        self.layer_classifier = nn.Linear(config.hidden_size, config.hidden_size)
+
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -1050,12 +1051,18 @@ class DeiTForImageClassification(DeiTPreTrainedModel):
             return ((loss,) + output) if loss is not None else output
 
         transformed_attribution = ()
+        transformed_layer = ()
         if is_student:
-            for layer in range(len(outputs.attributions)):
-                trans_attr = self.attribution_classifier(outputs.attributions[layer][4])
-                transformed_attribution = transformed_attribution \
-                                          + ((outputs.attributions[layer][:4] + (trans_attr,)
-                                              + outputs.attributions[layer][5:]),)
+            if outputs.attributions:
+                for layer in range(len(outputs.attributions)):
+                    trans_attr = self.attribution_classifier(outputs.attributions[layer][4])
+                    transformed_attribution = transformed_attribution \
+                                              + ((outputs.attributions[layer][:4] + (trans_attr,)
+                                                  + outputs.attributions[layer][5:]),)
+            if outputs.hidden_states:
+                for layer in range(len(outputs.hidden_states)):
+                    trans_hidden = self.layer_classifier(outputs.hidden_states[layer])
+                    transformed_layer = transformed_layer + (trans_hidden,)
 
         return ImageClassifierOutput(
             loss=loss,
@@ -1131,6 +1138,8 @@ class DeiTForImageClassificationWithTeacher(DeiTPreTrainedModel):
 
         self.attribution_classifier = nn.Linear(atten_size + 2, atten_size + 2)
 
+        self.layer_classifier = nn.Linear(config.hidden_size, config.hidden_size)
+
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -1175,12 +1184,18 @@ class DeiTForImageClassificationWithTeacher(DeiTPreTrainedModel):
         logits = (cls_logits + distillation_logits) / 2
 
         transformed_attribution = ()
+        transformed_layer = ()
         if is_student:
-            for layer in range(len(outputs.attributions)):
-                trans_attr = self.attribution_classifier(outputs.attributions[layer][4])
-                transformed_attribution = transformed_attribution \
-                                          + ((outputs.attributions[layer][:4] + (trans_attr,)
-                                              + outputs.attributions[layer][5:]),)
+            if outputs.attributions:
+                for layer in range(len(outputs.attributions)):
+                    trans_attr = self.attribution_classifier(outputs.attributions[layer][4])
+                    transformed_attribution = transformed_attribution \
+                                              + ((outputs.attributions[layer][:4] + (trans_attr,)
+                                                  + outputs.attributions[layer][5:]),)
+            if outputs.hidden_states:
+                for layer in range(len(outputs.hidden_states)):
+                    trans_hidden = self.layer_classifier(outputs.hidden_states[layer])
+                    transformed_layer = transformed_layer + (trans_hidden,)
 
         if not return_dict:
             output = (logits, cls_logits, distillation_logits) + outputs[1:]

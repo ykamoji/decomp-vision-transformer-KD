@@ -47,11 +47,7 @@ def run_distillation(Args):
 
     teacher_model = ViTForImageClassification.from_pretrained(fine_tuned_model_path)
 
-
     # print(teacher_model)
-
-    ## TODO:: Extend the student model to use linear transformation for the layer at the end.
-    ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/transformer/modeling.py#L1119
 
     _, training_data, testing_data = build_dataset(True, Args, show_details=False)
 

@@ -59,7 +59,7 @@ class DistillationTrainer(Trainer):
             soft_student = F.log_softmax(student_tokens / self.temperature, dim=-1)
 
             return self.distillation_loss_fun(soft_student, soft_teacher) * (
-                        self.temperature ** 2) / student_tokens.numel()
+                    self.temperature ** 2) / student_tokens.numel()
 
         elif self.distillation_type == 'hard':
 
@@ -72,7 +72,6 @@ class DistillationTrainer(Trainer):
         else:
             return student_output.loss
 
-    ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/task_distill.py#L935
     def _layer_loss(self, teacher_layers, student_layers):
         layer_loss = 0.
         loss_mse = nn.MSELoss()
@@ -81,7 +80,6 @@ class DistillationTrainer(Trainer):
         student_layer_num = len(student_layers)
         assert teacher_layer_num % student_layer_num == 0
         layers_per_block = int(teacher_layer_num / student_layer_num)
-        # layers_per_block = 1
 
         new_teacher_layers = [
             teacher_layers[i * layers_per_block + layers_per_block - 1]
@@ -96,14 +94,15 @@ class DistillationTrainer(Trainer):
                                         teacher_layer)
 
             if self.distillation_token:
-                tmp_loss = loss_mse(student_layer[:, :1:, :], teacher_layer)
-            else:
-                tmp_loss = loss_mse(student_layer[:, :, :], teacher_layer)
+                indices = torch.tensor([0] + list(range(2, student_layer.shape[1])), device=student_layer.device)
+                student_layer = torch.index_select(student_layer, 1, indices)
+
+            tmp_loss = loss_mse(student_layer, teacher_layer)
+
             layer_loss += tmp_loss
 
         return layer_loss
 
-    ##  refer https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/TinyBERT/task_distill.py#L935
     def _attn_loss(self, teacher_atts, student_atts):
         att_loss = 0.
         loss_mse = nn.MSELoss()
@@ -123,10 +122,10 @@ class DistillationTrainer(Trainer):
                                       torch.zeros_like(teacher_att),
                                       teacher_att)
 
-            teacher_att = teacher_att[:, :, 0, :]
-            student_att = student_att[:, :, 0, :]
             if self.distillation_token:
-                student_att = student_att[:,:,1:]
+                indices = torch.tensor([0] + list(range(2, student_att.shape[3])), device=student_att.device)
+                student_att = torch.index_select(student_att, 2, indices)
+                student_att = torch.index_select(student_att, 3, indices)
 
             tmp_loss = loss_mse(student_att, teacher_att)
             att_loss += tmp_loss
@@ -150,7 +149,7 @@ class DistillationTrainer(Trainer):
             # student_attr_without_dist[:,:,0,:] = student_attr[:,:,0,1:]
             # student_attr_without_dist[:,:,1:,:] = student_attr[:,:,2:,1:]
             # student_attr = student_attr_without_dist
-            student_attr = student_attr[:,:, 1:]
+            student_attr = student_attr[:, :, 1:]
 
         return self.attribution_loss_fn(teacher_attr, student_attr)
 
@@ -162,7 +161,7 @@ class DistillationTrainer(Trainer):
         student_ats = torch.stack([student_ats[i] for i in range(num_layers)]).squeeze()
 
         if self.distillation_token:
-            student_ats = student_ats[:,:,1:]
+            student_ats = student_ats[:, :, 1:]
 
         return self.ats_loss_fn(teacher_ats, student_ats)
 
@@ -170,17 +169,13 @@ class DistillationTrainer(Trainer):
 
         if not self.printed:
 
-            for model_name, logits, hidden_layers, attn_layers, attr_layers, ats_layers in zip(["Teacher", "Student"],
-                                                                      [teacher_output.logits,
-                                                                       student_output.logits],
-                                                                      [teacher_output.hidden_states,
-                                                                       student_output.hidden_states],
-                                                                      [teacher_output.attentions,
-                                                                       student_output.attentions],
-                                                                      [teacher_output.attributions,
-                                                                       student_output.attributions],
-                                                                      [teacher_output.ats_attentions,
-                                                                       student_output.ats_attentions]):
+            for model_name, logits, hidden_layers, attn_layers, attr_layers, ats_layers \
+                    in zip(["Teacher", "Student"],[teacher_output.logits,student_output.logits],
+                            [teacher_output.hidden_states,student_output.hidden_states],
+                            [teacher_output.attentions, student_output.attentions],
+                            [teacher_output.attributions, student_output.attributions],
+                            [teacher_output.ats_attentions, student_output.ats_attentions]):
+
                 print(f"\n{model_name}:")
                 print(f"Logits Shape = {logits.shape}")
 
@@ -216,17 +211,17 @@ class DistillationTrainer(Trainer):
         if not return_outputs:
 
             if self.use_hidden_loss:
-                kwargs = {**kwargs, **{"output_hidden_states":True}}
+                kwargs = {**kwargs, **{"output_hidden_states": True}}
 
             if self.use_attention_loss:
                 kwargs = {**kwargs, **{"output_attentions": True}}
 
             if self.use_attribution_loss:
-                kwargs = {**kwargs,**{"output_hidden_states":True, "output_attentions": True,
-                                      "output_norms": True, "output_globenc": True}}
+                kwargs = {**kwargs, **{"output_hidden_states": True, "output_attentions": True,
+                                       "output_norms": True, "output_globenc": True}}
 
             if self.use_ats_loss:
-                kwargs = {**kwargs, **{"output_ats":1}}
+                kwargs = {**kwargs, **{"output_ats": 1}}
 
             # s_kwargs = {**kwargs, **{"is_student":True}}
             s_kwargs = kwargs
