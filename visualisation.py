@@ -176,8 +176,8 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
     images_downstream = []
     for im in pbar:
         # label = im.split('_')[1].split('.')[0]
-        # label = label_map[im.split('/')[-2]]
-        label = label_map[im.split('/')[-1].split('_')[0]]
+        label = label_map[im.split('/')[-2]]
+        # label = label_map[im.split('/')[-1].split('_')[0]]
         image = Image.open(im)
         image_nd = np.array(image)
         if image_nd.ndim < 3:
