@@ -5,6 +5,7 @@ import matplotlib.patches as pat
 import matplotlib.pyplot as plt
 from features.attention_rollout import AttentionRollout
 from features.plus import compute_plus, compute_skip_plus
+from torchvision.transforms import v2
 
 
 def get_device():
@@ -59,6 +60,8 @@ def prepare_attributions(attributions, strategies):
     num_layers = len(attributions)
     if type(attributions[0]) is tuple:
         norm_nenc = torch.stack([attributions[i][4] for i in range(num_layers)]).detach().squeeze().cpu().numpy()
+    elif type(attributions[0]) is not tuple:
+        norm_nenc = torch.stack([attributions[i] for i in range(num_layers)]).detach().squeeze().cpu().numpy()
     else:
         norm_nenc = attributions.detach().cpu().numpy()
     return process_common(norm_nenc, strategies, type='Attributions')
@@ -162,16 +165,13 @@ def plot_feature_scores(attribute_score_per_patch, ax, factor, feature_type, gri
                 ax.axis('off')
 
 
-def mask_image(image_tensor, type, mask_perc, scores=None, threshold_score=2):
+def mask_image(image_tensor, featureType, mask_perc, scores=None, threshold_score=2):
     image_masked = torch.clone(image_tensor)
     factor = 14
     grid_size = 224 // factor
     channel, _, _ = image_tensor.shape
     mask_pixel_count = int(factor ** 2 * mask_perc / 100)
-    if type == 'random':
-        # plt.imshow(image_tensor.permute((1, 2, 0)).numpy())
-        # plt.show()
-
+    if featureType == 'random':
         indices = random.sample(range(factor**2), mask_pixel_count)
 
         for index in indices:
@@ -179,9 +179,6 @@ def mask_image(image_tensor, type, mask_perc, scores=None, threshold_score=2):
             col = index % factor
             image_masked[:,row*grid_size:(row+1)*grid_size, col*grid_size:(col+1)*grid_size] \
                 = torch.rand((channel, grid_size, grid_size))
-
-        # plt.imshow(image_masked.permute((1, 2, 0)).numpy())
-        # plt.show()
 
         return image_masked
 
@@ -207,11 +204,20 @@ def mask_image(image_tensor, type, mask_perc, scores=None, threshold_score=2):
             image_masked[:,x*grid_size:(x+1)*grid_size,y*grid_size:(y+1)*grid_size] \
                 = torch.rand((channel, grid_size,grid_size))
 
-        # plt.imshow(image_masked.permute((1,2,0)).numpy())
-        # plt.show()
-
         return image_masked
 
 
-
+def show_masked_images(image, label, featureType, scores, mask_perc, Args):
+    resize = v2.Resize(size=(224, 224))
+    original_image = torch.tensor(image, device=get_device()).permute((2,0,1))
+    original_image = resize(original_image)
+    original_image = mask_image(original_image, featureType=featureType, mask_perc=mask_perc, scores=scores,
+                                threshold_score=Args.Visualization.Plot.ThresholdScore)
+    plt.imshow(original_image.permute((1, 2, 0)).cpu().numpy())
+    # plt.title(featureType)
+    plt.axis('off')
+    if Args.Visualization.Plot.SaveMasking:
+        plt.savefig(f'temp/{label}_{featureType}_{mask_perc}')
+    if Args.Visualization.Plot.ShowMasking:
+        plt.show()
 

@@ -220,14 +220,14 @@ class DeiTSelfAttention(nn.Module):
         ats_outputs = None
         if output_ats >= 1:
             ats_score = self.score_assignment_step(attention_probs, value_layer, output_ats)
-            ats_outputs = (context_layer, ats_score)
+            ats_outputs = (context_layer, attention_probs, ats_score)
 
         attr_outputs = None
         if output_norms or output_globenc:
             attr_outputs = (context_layer, attention_probs, value_layer)
 
         if ats_outputs and attr_outputs:
-            outputs = attr_outputs + (ats_outputs[1],)
+            outputs = attr_outputs + (ats_outputs[2],)
             return outputs
         elif ats_outputs:
             return ats_outputs
@@ -495,9 +495,7 @@ class DeitNormOutput(nn.Module):
                 return outputs
 
             else:
-                return (
-                    post_ln_layer,
-                )
+                return post_ln_layer
 
     def perform_attribution(self, hidden_states, attention, layer_value, dense, layerNorm1, pre_ln_states,
                             pre_ln2_states, layerNorm2, output_norms):
@@ -507,7 +505,7 @@ class DeitNormOutput(nn.Module):
         norm_output = self(hidden_states, attention, layer_value, dense, layerNorm1, pre_ln_states,
                                 globenc_only=(not output_norms))
 
-        post_ln_layer = norm_output[4] if output_norms else norm_output[0]
+        post_ln_layer = norm_output[4] if output_norms else norm_output
         each_mean = post_ln_layer.mean(-1, keepdim=True)
 
         mean = pre_ln2_states.mean(-1, keepdim=True)
@@ -517,7 +515,7 @@ class DeitNormOutput(nn.Module):
         post_ln2_layer = torch.einsum('bskd,d->bskd', normalized_layer, layerNorm2.weight)
         post_ln2_norm = torch.norm(post_ln2_layer, dim=-1)
 
-        output = (post_ln2_norm,)
+        output = post_ln2_norm
         if output_norms:
             # N-ResOut  mixing ratio
             post_ln2_preserving = torch.diagonal(post_ln2_layer, dim1=1, dim2=2).permute(0, 2, 1)
@@ -596,11 +594,11 @@ class DeiTEncoder(nn.Module):
                 previous_pre_ln_states = layer_outputs[3]
                 previous_hidden_input = hidden_states
             elif output_ats >= 1:
-                all_ats_attentions = all_ats_attentions + (layer_outputs[1],)
+                all_ats_attentions = all_ats_attentions + (layer_outputs[2],)
 
             hidden_states = layer_outputs[0]
 
-            if output_attentions or output_ats >= 1:
+            if output_attentions:
                 all_self_attentions = all_self_attentions + (layer_outputs[1],)
 
         if output_hidden_states:

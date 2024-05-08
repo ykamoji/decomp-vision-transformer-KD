@@ -15,7 +15,8 @@ from models_utils import ViTForImageClassification, DeiTForImageClassificationWi
 from transformers import ViTImageProcessor, DeiTImageProcessor
 from transformers.image_transforms import resize
 from transformers.image_utils import PILImageResampling
-from utils.featureUtils import process_features, feature_score, mask_image, plot_feature_scores, get_device
+from utils.featureUtils import process_features, feature_score, mask_image, plot_feature_scores, \
+    get_device, show_masked_images
 from torch.utils.data import DataLoader
 
 warnings.filterwarnings('ignore')
@@ -70,7 +71,7 @@ def visualize(Args):
 
             inputs = inputs.to(get_device())
 
-            outputs = model(**inputs, output_attentions=True, output_hidden_states=True, output_norms=True,
+            outputs = model(**inputs, output_attentions=True, output_hidden_states=True, output_norms=False,
                               output_globenc=True, output_ats = 1 if Args.Visualization.UseOnlyCLSForATS else 2)
             logits = outputs.logits
             predicted_class_idx = logits.argmax(-1).item()
@@ -115,7 +116,7 @@ def visualize(Args):
             ax1.axis('off')
 
             img_resized_feature = img_resized.copy()
-            for patches, feature_type, ax in zip([trans_features[0], trans_features[1], trans_features[2]],
+            for patches, feature_feature_type, ax in zip([trans_features[0], trans_features[1], trans_features[2]],
                                                  ["Attribution", "Attention", "ATS"],
                                                  [ax2, ax3, ax4]):
 
@@ -123,7 +124,7 @@ def visualize(Args):
                 if factor > 14:
                     factor = 14
 
-                plot_feature_scores(attribute_score_per_patch, ax, factor, feature_type, grid_size, img_resized_feature,
+                plot_feature_scores(attribute_score_per_patch, ax, factor, feature_feature_type, grid_size, img_resized_feature,
                                     threshold_score)
 
             if saveImages:
@@ -175,7 +176,8 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
     images_downstream = []
     for im in pbar:
         # label = im.split('_')[1].split('.')[0]
-        label = label_map[im.split('/')[-2]]
+        # label = label_map[im.split('/')[-2]]
+        label = label_map[im.split('/')[-1].split('_')[0]]
         image = Image.open(im)
         image_nd = np.array(image)
         if image_nd.ndim < 3:
@@ -187,8 +189,9 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
             # print(f"Error: {e}\nSkipping {im}")
             continue
         processed_image = processed_image.data['pixel_values'][0]
-        images_downstream.append({'pixel_values': processed_image, 'label': label})
-        masked_image = mask_image(processed_image, type='random', mask_perc=K)
+        images_downstream.append({'pixel_values': processed_image, 'label': label, 'original_image': image_nd})
+        masked_image = mask_image(processed_image, featureType='random', mask_perc=K)
+        show_masked_images(image_nd, label, featureType='random', scores=None, Args=Args, mask_perc=K)
         dataset.append({'pixel_values': masked_image, 'label': label})
 
     result = {"K": K}
@@ -216,7 +219,7 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
     attribution_accuracy = mask_feature_eval(images_downstream, model,
                                              'Attribution',
                                              {"output_attentions": True, "output_hidden_states": True,
-                                              "output_norms": True, "output_globenc": True},
+                                              "output_norms": False, "output_globenc": True},
                                              K,
                                              Args)
 
@@ -225,9 +228,9 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
     return result
 
 
-def mask_feature_eval(dataset, model, type, params, K, Args):
+def mask_feature_eval(dataset, model, feature_type, params, K, Args):
     cached = False
-    cache_name = f"feature_{type}_{','.join(Args.Visualization.Strategies)}_cache.npy"
+    cache_name = f"feature_{feature_type}_{','.join(Args.Visualization.Strategies)}_cache.npy"
     if os.path.exists(cache_name):
         feature_scores_cache = np.load(cache_name)
         cached = True
@@ -235,52 +238,60 @@ def mask_feature_eval(dataset, model, type, params, K, Args):
     if cached:
         feature_scores = feature_scores_cache.tolist()
     else:
-        dataloader = DataLoader(dataset, batch_size=Args.Visualization.Plot.BatchSize)
+        dataset_loader = []
+        for data in dataset:
+            dataset_loader.append({'pixel_values': data['pixel_values'], 'label': data['label']})
+        dataloader = DataLoader(dataset_loader, batch_size=Args.Visualization.Plot.BatchSize)
         pbar = tqdm(iter(dataloader))
-        pbar.set_description(f"Eval {type} Scores")
+        pbar.set_description(f"Eval {feature_type} Scores")
         feature_scores = []
         for batch in pbar:
             inputs = {'pixel_values': batch['pixel_values'].to(get_device())}
             outputs = model(**inputs, **params)
-            if type == 'Attention':
+            if feature_type == 'Attention':
                 features = outputs.attentions
-            elif type == 'Attribution':
+            elif feature_type == 'Attribution':
                 features = outputs.attributions
-            elif type == 'ATS':
+            elif feature_type == 'ATS':
                 features = outputs.ats_attentions
-            feature_scores += process_feature_output_batch(features, type, Args.Visualization.Strategies)
+            feature_scores += process_feature_output_batch(features, feature_type, Args.Visualization.Strategies)
 
         feature_scores_nd = np.array(feature_scores)
         np.save(cache_name, feature_scores_nd)
 
     masked_attn_dataset = []
     pbar = tqdm(range(len(dataset)))
-    pbar.set_description(f"Image Masking ({type})")
+    pbar.set_description(f"Image Masking ({feature_type})")
     for index in pbar:
         image = dataset[index]['pixel_values']
         scores = feature_scores[index]
-        masked_attn_image = mask_image(image, type=type, mask_perc=K, scores=scores,
+        masked_attn_image = mask_image(image, featureType=feature_type, mask_perc=K, scores=scores,
                                        threshold_score=Args.Visualization.Plot.ThresholdScore)
+        show_masked_images(dataset[index]['original_image'], dataset[index]['label'],
+                           featureType=feature_type, scores=scores, mask_perc=K, Args=Args,)
         masked_attn_image = {'pixel_values': masked_attn_image, 'label': dataset[index]['label']}
         masked_attn_dataset.append(masked_attn_image)
 
-    return eval_model(masked_attn_dataset, model, type, Args)
+    return eval_model(masked_attn_dataset, model, feature_type, Args)
 
 
-def process_feature_output_batch(features, type, strategies):
+def process_feature_output_batch(features, feature_type, strategies):
     num_layers = len(features)
 
-    if type == "Attention" or type == "ATS":
+    if feature_type == "Attention" or feature_type == "ATS":
         batch_tensor = torch.stack([features[i] for i in range(num_layers)])
-    elif type == "Attribution":
-        batch_tensor = torch.stack([features[i][4] for i in range(num_layers)])
+    elif feature_type == "Attribution":
+        if type(features[0]) == tuple:
+            batch_tensor = torch.stack([features[i][4] for i in range(num_layers)])
+        else:
+            batch_tensor = torch.stack([features[i] for i in range(num_layers)])
 
     shape = (1, 0,) + tuple(range(2, batch_tensor.ndim))
     batch_tensor = batch_tensor.permute(shape)
     single_image_features = (batch_tensor[i] for i in range(batch_tensor.shape[0]))
     scores = []
     for image_attn in single_image_features:
-        patches = process_features(image_attn, 14, featureType=type, strategies=strategies)
+        patches = process_features(image_attn, 14, featureType=feature_type, strategies=strategies)
         attn_scores = feature_score(patches)
         scores.append(attn_scores)
 

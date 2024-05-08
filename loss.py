@@ -133,7 +133,10 @@ class DistillationTrainer(Trainer):
 
     def _process_attribution(self, attr):
         num_layers = len(attr)
-        attribution = torch.stack([attr[i][4] for i in range(num_layers)]).squeeze()
+        if type(attr[0]) is tuple:
+            attribution = torch.stack([attr[i][4] for i in range(num_layers)]).squeeze()
+        else:
+            attribution = torch.stack([attr[i] for i in range(num_layers)]).squeeze()
         # if attribution.ndim == 3: attribution = attribution.unsqueeze(0)
         # attribution = attribution / attribution.max(dim=3)[0].unsqueeze(3)
         return attribution
@@ -218,7 +221,7 @@ class DistillationTrainer(Trainer):
 
             if self.use_attribution_loss:
                 kwargs = {**kwargs, **{"output_hidden_states": True, "output_attentions": True,
-                                       "output_norms": True, "output_globenc": True}}
+                                       "output_norms": False, "output_globenc": True}}
 
             if self.use_ats_loss:
                 kwargs = {**kwargs, **{"output_ats": 1}}
