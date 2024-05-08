@@ -207,17 +207,20 @@ def mask_image(image_tensor, featureType, mask_perc, scores=None, threshold_scor
         return image_masked
 
 
-def show_masked_images(image, label, featureType, scores, mask_perc, Args):
+def show_masked_images(image, label, featureType, scores, mask_percs, Args):
     resize = v2.Resize(size=(224, 224))
     original_image = torch.tensor(image, device=get_device()).permute((2,0,1))
     original_image = resize(original_image)
-    original_image = mask_image(original_image, featureType=featureType, mask_perc=mask_perc, scores=scores,
+
+    fig, ax = plt.subplots(1, len(mask_percs), figsize=(30, 8))
+    for index, mask_perc in enumerate(mask_percs):
+        original_image = mask_image(original_image, featureType=featureType, mask_perc=mask_perc, scores=scores,
                                 threshold_score=Args.Visualization.Plot.ThresholdScore)
-    plt.imshow(original_image.permute((1, 2, 0)).cpu().numpy())
+        ax[index].imshow(original_image.permute((1, 2, 0)).cpu().numpy())
+        ax[index].axis('off')
     # plt.title(featureType)
-    plt.axis('off')
-    if Args.Visualization.Plot.SaveMasking:
-        plt.savefig(f'temp/{label}_{featureType}_{mask_perc}')
-    if Args.Visualization.Plot.ShowMasking:
+    if Args.Visualization.Masking.SaveMasking:
+        plt.savefig(f'temp/masking_{label}_{featureType}')
+    if  Args.Visualization.Masking.ShowMasking:
         plt.show()
 

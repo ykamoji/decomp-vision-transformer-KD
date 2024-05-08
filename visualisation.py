@@ -168,6 +168,21 @@ def visualize(Args):
                     bbox_inches='tight', edgecolor='auto')
         plt.show()
 
+    if Args.Visualization.Masking.Action:
+        for index, im in enumerate(images):
+            # label = im.split('_')[1].split('.')[0]
+            label = label_map[im.split('/')[-2]]
+            # label = label_map[im.split('/')[-1].split('_')[0]]
+            image = Image.open(im)
+            image_nd = np.array(image)
+            for featureType in ["random", "Attention", "ATS", "Attribution"]:
+                cache_name = f"feature_{featureType}_{','.join(Args.Visualization.Strategies)}_cache.npy"
+                if os.path.exists(cache_name):
+                    feature_scores_cache = np.load(cache_name)[index]
+                else:
+                    feature_scores_cache = None
+                show_masked_images(image_nd, label, featureType=featureType, scores=feature_scores_cache,
+                                   Args=Args, mask_percs=list(range(0, 60, 10)))
 
 def plotMaskedCurves(model, processor, images, label_map, K, Args):
     dataset = []
@@ -176,8 +191,8 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
     images_downstream = []
     for im in pbar:
         # label = im.split('_')[1].split('.')[0]
-        label = label_map[im.split('/')[-2]]
-        # label = label_map[im.split('/')[-1].split('_')[0]]
+        # label = label_map[im.split('/')[-2]]
+        label = label_map[im.split('/')[-1].split('_')[0]]
         image = Image.open(im)
         image_nd = np.array(image)
         if image_nd.ndim < 3:
@@ -189,9 +204,8 @@ def plotMaskedCurves(model, processor, images, label_map, K, Args):
             # print(f"Error: {e}\nSkipping {im}")
             continue
         processed_image = processed_image.data['pixel_values'][0]
-        images_downstream.append({'pixel_values': processed_image, 'label': label, 'original_image': image_nd})
+        images_downstream.append({'pixel_values': processed_image, 'label': label})
         masked_image = mask_image(processed_image, featureType='random', mask_perc=K)
-        show_masked_images(image_nd, label, featureType='random', scores=None, Args=Args, mask_perc=K)
         dataset.append({'pixel_values': masked_image, 'label': label})
 
     result = {"K": K}
@@ -238,10 +252,7 @@ def mask_feature_eval(dataset, model, feature_type, params, K, Args):
     if cached:
         feature_scores = feature_scores_cache.tolist()
     else:
-        dataset_loader = []
-        for data in dataset:
-            dataset_loader.append({'pixel_values': data['pixel_values'], 'label': data['label']})
-        dataloader = DataLoader(dataset_loader, batch_size=Args.Visualization.Plot.BatchSize)
+        dataloader = DataLoader(dataset, batch_size=Args.Visualization.Plot.BatchSize)
         pbar = tqdm(iter(dataloader))
         pbar.set_description(f"Eval {feature_type} Scores")
         feature_scores = []
@@ -267,8 +278,6 @@ def mask_feature_eval(dataset, model, feature_type, params, K, Args):
         scores = feature_scores[index]
         masked_attn_image = mask_image(image, featureType=feature_type, mask_perc=K, scores=scores,
                                        threshold_score=Args.Visualization.Plot.ThresholdScore)
-        show_masked_images(dataset[index]['original_image'], dataset[index]['label'],
-                           featureType=feature_type, scores=scores, mask_perc=K, Args=Args,)
         masked_attn_image = {'pixel_values': masked_attn_image, 'label': dataset[index]['label']}
         masked_attn_dataset.append(masked_attn_image)
 
