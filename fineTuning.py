@@ -9,6 +9,7 @@ warnings.filterwarnings('ignore')
 
 IGNORE_KEYS = ['cls_logits', 'distillation_logits', 'hidden_states', 'attentions', 'attributions']
 
+
 def get_fine_tuning_trainer_args(output_path, hyperparameters):
     return TrainingArguments(
         output_dir=output_path + 'training/',
@@ -21,8 +22,9 @@ def get_fine_tuning_trainer_args(output_path, hyperparameters):
         eval_steps=20,
         logging_steps=10,
         learning_rate=hyperparameters.Lr,
+        lr_scheduler_type='cosine',
         warmup_ratio=0.1,
-        warmup_steps=1,
+        warmup_steps=100,
         weight_decay=hyperparameters.WeightDecay,
         save_total_limit=2,
         metric_for_best_model='accuracy',
@@ -32,7 +34,7 @@ def get_fine_tuning_trainer_args(output_path, hyperparameters):
         push_to_hub=False,
         load_best_model_at_end=True,
         seed=42,
-        gradient_accumulation_steps=4,
+        gradient_accumulation_steps=1,
     )
 
 

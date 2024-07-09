@@ -127,7 +127,10 @@ class DistillationTrainer(Trainer):
                 student_att = torch.index_select(student_att, 2, indices)
                 student_att = torch.index_select(student_att, 3, indices)
 
-            tmp_loss = loss_mse(student_att, teacher_att)
+            if student_att.shape[1] != teacher_att.shape[1]:
+                tmp_loss = loss_mse(student_att.mean(1), teacher_att.mean(1))
+            else:
+                tmp_loss = loss_mse(student_att, teacher_att)
             att_loss += tmp_loss
         return att_loss
 
@@ -173,11 +176,11 @@ class DistillationTrainer(Trainer):
         if not self.printed:
 
             for model_name, logits, hidden_layers, attn_layers, attr_layers, ats_layers \
-                    in zip(["Teacher", "Student"],[teacher_output.logits,student_output.logits],
-                            [teacher_output.hidden_states,student_output.hidden_states],
-                            [teacher_output.attentions, student_output.attentions],
-                            [teacher_output.attributions, student_output.attributions],
-                            [teacher_output.ats_attentions, student_output.ats_attentions]):
+                    in zip(["Teacher", "Student"], [teacher_output.logits, student_output.logits],
+                           [teacher_output.hidden_states, student_output.hidden_states],
+                           [teacher_output.attentions, student_output.attentions],
+                           [teacher_output.attributions, student_output.attributions],
+                           [teacher_output.ats_attentions, student_output.ats_attentions]):
 
                 print(f"\n{model_name}:")
                 print(f"Logits Shape = {logits.shape}")
