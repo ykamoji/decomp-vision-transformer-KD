@@ -13,7 +13,6 @@ IGNORE_KEYS = ['cls_logits', 'distillation_logits', 'hidden_states', 'attentions
 
 
 def get_distillation_training_args(output_path, hyperparameters):
-
     return TrainingArguments(
         output_dir=output_path + 'training/',
         logging_dir=output_path + 'logs/',
@@ -43,18 +42,19 @@ def get_distillation_training_args(output_path, hyperparameters):
 
 
 def run_distillation(Args):
-
-    fine_tuned_model_path = get_model_path('FineTuned', Args)
-
-    teacher_model = ViTForImageClassification.from_pretrained(fine_tuned_model_path)
-
+    try:
+        fine_tuned_model_path = get_model_path('FineTuned', Args)
+        teacher_model = ViTForImageClassification.from_pretrained(fine_tuned_model_path)
+    except Exception as e:
+        print(f"Exception\n{e}\nUsing huggingface pretrained model.")
+        teacher_model = ViTForImageClassification.from_pretrained(Args.Distillation.Model,
+                                                                  cache_dir=Args.Distillation.Model.CachePath)
     # print(teacher_model)
 
     _, training_data, testing_data = build_dataset(True, Args, show_details=False)
 
     compute_metrics = build_metrics(Args.Common.Metrics)
 
-    student_config = None
     if Args.Distillation.UseDistTokens:
         classificationMode = DeiTForImageClassificationWithTeacher
     else:
@@ -63,10 +63,10 @@ def run_distillation(Args):
     if Args.Distillation.RandomWeights:
 
         student_config = ViTConfig.from_pretrained(Args.Distillation.StudentModel.Name,
-                                                  num_labels=teacher_model.config.num_labels,
-                                                  ignore_mismatched_sizes=True)
+                                                   num_labels=teacher_model.config.num_labels,
+                                                   ignore_mismatched_sizes=True)
 
-        student_model = ViTForImageClassification._from_config(config=student_config)
+        student_model = classificationMode._from_config(config=student_config)
 
     else:
 
@@ -113,7 +113,5 @@ def run_distillation(Args):
 
     writer.close()
 
-    with open(output_path + '/training/'+'config.json', 'x', encoding='utf-8') as f:
+    with open(output_path + '/training/' + 'config.json', 'x', encoding='utf-8') as f:
         f.write(Args.toJSON())
-
-
