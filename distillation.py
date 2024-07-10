@@ -1,5 +1,5 @@
 from process_datasets import build_dataset, build_metrics, collate_fn
-from transformers import TrainingArguments
+from transformers import TrainingArguments, ViTConfig
 from models_utils import ViTForImageClassification, DeiTForImageClassificationWithTeacher
 from transformers.training_args import OptimizerNames
 from loss import DistillationTrainer
@@ -60,10 +60,20 @@ def run_distillation(Args):
     else:
         classificationMode = ViTForImageClassification
 
-    student_model = classificationMode.from_pretrained(Args.Distillation.StudentModel.Name,
-                                                       num_labels=teacher_model.config.num_labels,
-                                                       cache_dir=Args.Distillation.StudentModel.CachePath,
-                                                       ignore_mismatched_sizes=True)
+    if Args.Distillation.RandomWeights:
+
+        student_config = ViTConfig.from_pretrained(Args.Distillation.StudentModel.Name,
+                                                  num_labels=teacher_model.config.num_labels,
+                                                  ignore_mismatched_sizes=True)
+
+        student_model = ViTForImageClassification._from_config(config=student_config)
+
+    else:
+
+        student_model = classificationMode.from_pretrained(Args.Distillation.StudentModel.Name,
+                                                           num_labels=teacher_model.config.num_labels,
+                                                           cache_dir=Args.Distillation.StudentModel.CachePath,
+                                                           ignore_mismatched_sizes=True)
 
     output_path = prepare_output_path('Distilled', Args)
 

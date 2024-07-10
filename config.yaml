@@ -40,6 +40,7 @@ Distillation:
     Epochs: 1
     Lr: 0.003
     WeightDecay: 0.3
+  RandomWeights: False
   UseDistTokens: False
   DistillationType: soft # Set soft for KL divergence loss using probability or hard for cross entropy loss with logits
   UseAttributionLoss: False
