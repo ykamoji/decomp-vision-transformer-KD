@@ -45,7 +45,7 @@ Distillation:
   DistillationType: soft # Set soft for KL divergence loss using probability or hard for cross entropy loss with logits
   UseAttributionLoss: False
   UseATSLoss : False
-  UseAttentionLoss: True
+  UseAttentionLoss: False
   UseHiddenLoss : False
 
 Visualization:
