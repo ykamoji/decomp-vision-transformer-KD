@@ -7,8 +7,8 @@ Common:
     Name: imageNet
     Label: label
     Path: !ENV ${DATASET_PATH} # Update the dataset path here or add DATASET_PATH to environment.
-    Train: '' # Set <>% or <> exact number of batches to train
-    Test: '' # Set <>% or <> exact number of batches to test
+    Train: '64' # Set <>% or <> exact number of batches to train
+    Test: '64' # Set <>% or <> exact number of batches to test
 
 FineTuning:
   Action: False

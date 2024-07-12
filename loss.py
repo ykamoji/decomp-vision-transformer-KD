@@ -207,6 +207,9 @@ class DistillationTrainer(Trainer):
 
     def compute_loss(self, student, inputs, return_outputs=False):
 
+        for k,v in inputs.items():
+            inputs[k] = v.to(get_device())
+
         student_inputs = inputs
 
         if self.distillation_token:
