@@ -1,14 +1,14 @@
 Common:
   Results: Results/
   Metrics:
-    Name: accuracy
+    Name: acc,topk
     CachePath: metrics/
   DataSet:
     Name: imageNet
     Label: label
     Path: !ENV ${DATASET_PATH} # Update the dataset path here or add DATASET_PATH to environment.
-    Train: '64' # Set <>% or <> exact number of batches to train
-    Test: '64' # Set <>% or <> exact number of batches to test
+    Train: '' # Set <>% or <> exact number of batches to train
+    Test: '' # Set <>% or <> exact number of batches to test
 
 FineTuning:
   Action: False

@@ -15,15 +15,15 @@ def collate_fn(batch):
 def build_metrics(metric_args):
     metrics_to_evaluate = metric_args.Name.split(',')
     for m in metrics_to_evaluate:
-        _ = evaluate.load(m, cache_dir=metric_args.CachePath, trust_remote_code=True)
+        _ = evaluate.load('custom_metrics/' + m, cache_dir=metric_args.CachePath, trust_remote_code=True)
 
     # accuracy = evaluate.load("accuracy", cache_dir='metrics/', trust_remote_code=True)
 
-    metric = evaluate.combine(metrics_to_evaluate)
+    metric = evaluate.combine(['custom_metrics/' + m for m in metrics_to_evaluate])
 
     def compute_metrics(p):
         return metric.compute(
-            predictions=np.argmax(p.predictions, axis=1),
+            predictions=p.predictions,
             references=p.label_ids
         )
 

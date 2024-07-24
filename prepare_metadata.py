@@ -4,6 +4,7 @@ import csv
 import time
 import yaml
 import json
+import math
 import threading
 from utils.argUtils import CustomObject, get_yaml_loader
 from typing import Optional, Any
@@ -83,7 +84,7 @@ def create_metadata(dataSet_path):
                 print(f"[END] {self.tid}")
                 return self.local_labels
 
-        batches = len(class_labels) // BATCH_SIZE
+        batches = math.ceil(len(class_labels) / BATCH_SIZE)
         print(f"Total batches = {batches}")
         MetadataCreateThreads = []
         start = time.time()
@@ -107,7 +108,7 @@ def create_metadata(dataSet_path):
         print(f"Time taken [Sorting] = {((time.time() - start) / 60):.5f} seconds")
 
         start = time.time()
-        with open(f"{dataSet_path}/metadata.csv", 'w', newline='') as metadata:
+        with open(f"{dataSet_path}/metadata.csv", 'a', newline='') as metadata:
             writer = csv.writer(metadata)
             writer.writerow(["file_name", "label"])
             writer.writerows(data_to_write)
