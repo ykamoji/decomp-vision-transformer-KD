@@ -2,10 +2,6 @@ from datasets import load_dataset
 import evaluate
 from transformers import ViTImageProcessor, DeiTImageProcessor
 import torch
-import scipy
-import json
-import os
-import csv
 import numpy as np
 
 
@@ -50,7 +46,6 @@ def build_dataset(is_train, Args, show_details=True):
     label_key = DataSet.Label
 
     if DataSet.Name == 'imageNet':
-
         def preprocess(batchImage):
             batches = [img.convert("RGB") if img.mode != 'RGB' else img for img in batchImage['image']]
             inputs = feature_extractor(batches, return_tensors='pt')
@@ -68,46 +63,6 @@ def build_dataset(is_train, Args, show_details=True):
     if is_train:
 
         if DataSet.Name == 'imageNet':
-
-            mat = scipy.io.loadmat(f"{DataSet.Path}/meta.mat")
-            id2label = {}
-            validation_truth_map = {}
-            for item in mat['synsets']:
-                id2label[item[0][1][0]] = item[0][2][0]
-                validation_truth_map[item[0][0][0][0]] = item[0][2][0]
-
-            with open(f"{DataSet.Path}/ILSVRC2012_validation_ground_truth.txt", 'r') as f:
-                data = f.readlines()
-
-            ground_truth_map = {}
-            for idx, gt in enumerate(data):
-                ground_truth_map[idx + 1] = gt.removesuffix('\n')
-
-            with open(f"{DataSet.Path}/label2id.json", 'r') as f:
-                label2id = json.load(f)
-
-            class_labels = []
-            for root, dirs, files in os.walk(f"{DataSet.Path}"):
-                # class_labels.extend([folder.split('.tar')[0] for folder in files if '.tar' in folder])
-                if 'train' in root:
-                    class_labels.extend(["/".join([root.split('/')[-2], root.split('/')[-1]]) +
-                                     '/' + file for file in files if '.JPEG' in file])
-                else:
-                    class_labels.extend([root.split('/')[-1] +
-                                         '/' + file for file in files if '.JPEG' in file])
-            class_labels = list(set(class_labels))
-
-            with open(f"{DataSet.Path}/metadata.csv", 'w', newline='') as metadata:
-                writer = csv.writer(metadata)
-                writer.writerow(["file_name", "label"])
-                for class_label in class_labels:
-                    if 'train/' in class_label:
-                        label = id2label[class_label.split('/')[-1].split('_')[0]]
-                    else:
-                        label = validation_truth_map[int(ground_truth_map[int(class_label.split('_')[-1].split('.')[0])])]
-
-                    writer.writerow([class_label, label2id[label]])
-
 
             dataset_train = load_dataset('imagefolder', split=f"train[:{DataSet.Train}]", verification_mode='no_checks',
                                          data_dir=DataSet.Path)
