@@ -46,7 +46,7 @@ def run_distillation(Args):
         fine_tuned_model_path = get_model_path('FineTuned', Args)
         teacher_model = ViTForImageClassification.from_pretrained(fine_tuned_model_path)
     except Exception as e:
-        print(f"Exception\n{e}\nUsing huggingface pretrained model.")
+        print(f"Warning.{e}\n.\nUsing huggingface pretrained model.")
         teacher_model = ViTForImageClassification.from_pretrained(Args.Distillation.Model.Name,
                                                                   cache_dir=Args.Distillation.Model.CachePath)
     # print(teacher_model)

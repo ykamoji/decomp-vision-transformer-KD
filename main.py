@@ -1,6 +1,7 @@
 from fineTuning import fine_tuning
 from distillation import run_distillation
 from visualisation import visualize
+from prepare_metadata import create_metadata
 from utils.argUtils import CustomObject, get_yaml_loader
 import yaml
 import json
@@ -13,6 +14,9 @@ def start(configPath):
 
     x = json.dumps(config)
     Args = json.loads(x, object_hook=lambda d: CustomObject(**d))
+
+    if Args.Common.DataSet.Name == 'imageNet':
+        create_metadata(Args.Common.DataSet.Path)
 
     if Args.FineTuning.Action:
         fine_tuning(Args)
