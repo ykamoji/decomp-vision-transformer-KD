@@ -74,7 +74,13 @@ class DistillationTrainer(Trainer):
 
     def _layer_loss(self, teacher_layers, student_layers):
         layer_loss = 0.
-        loss_mse = nn.MSELoss()
+
+        embedding_loss = self._hidden_loss(student_layers[0], teacher_layers[0])
+
+        self.tb_log('Loss/Embedding', embedding_loss.item())
+
+        teacher_layers = teacher_layers[1:]
+        student_layers = student_layers[1:]
 
         teacher_layer_num = len(teacher_layers)
         student_layer_num = len(student_layers)
@@ -97,11 +103,23 @@ class DistillationTrainer(Trainer):
                 indices = torch.tensor([0] + list(range(2, student_layer.shape[1])), device=student_layer.device)
                 student_layer = torch.index_select(student_layer, 1, indices)
 
-            tmp_loss = loss_mse(student_layer, teacher_layer)
+            layer_loss += self._hidden_loss(student_layer, teacher_layer)
 
-            layer_loss += tmp_loss
+        layer_loss += embedding_loss
 
         return layer_loss
+
+    def _hidden_loss(self, student_layer, teacher_layer):
+        loss_mse = nn.MSELoss()
+        if student_layer.shape[-1] == teacher_layer.shape[-1]:
+            tmp_loss = loss_mse(student_layer, teacher_layer)
+        else:
+            tmp_loss = loss_mse(self._layer_similarity(student_layer), self._layer_similarity(teacher_layer))
+        return tmp_loss
+
+    def _layer_similarity(self, hidden_states):
+        hidden_states = hidden_states.flatten(1)
+        return F.cosine_similarity(hidden_states[:,:,None], hidden_states.t()[None,:,:])
 
     def _attn_loss(self, teacher_atts, student_atts):
         att_loss = 0.
@@ -207,7 +225,7 @@ class DistillationTrainer(Trainer):
 
     def compute_loss(self, student, inputs, return_outputs=False):
 
-        for k,v in inputs.items():
+        for k, v in inputs.items():
             inputs[k] = v.to(get_device())
 
         student_inputs = inputs
