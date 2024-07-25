@@ -26,7 +26,6 @@ def get_distillation_training_args(output_path, hyperparameters):
         learning_rate=hyperparameters.Lr,
         lr_scheduler_type='cosine',
         warmup_ratio=0.1,
-        warmup_steps=100,
         weight_decay=hyperparameters.WeightDecay,
         save_total_limit=2,
         metric_for_best_model='accuracy',
@@ -46,7 +45,7 @@ def run_distillation(Args):
         fine_tuned_model_path = get_model_path('FineTuned', Args)
         teacher_model = ViTForImageClassification.from_pretrained(fine_tuned_model_path)
     except Exception as e:
-        print(f"Warning.{e}\n.\nUsing huggingface pretrained model.")
+        print(f"Warning: {e}. Using huggingface pretrained model.")
         teacher_model = ViTForImageClassification.from_pretrained(Args.Distillation.Model.Name,
                                                                   cache_dir=Args.Distillation.Model.CachePath)
     # print(teacher_model)

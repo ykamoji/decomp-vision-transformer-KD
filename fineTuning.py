@@ -24,7 +24,6 @@ def get_fine_tuning_trainer_args(output_path, hyperparameters):
         learning_rate=hyperparameters.Lr,
         lr_scheduler_type='cosine',
         warmup_ratio=0.1,
-        warmup_steps=100,
         weight_decay=hyperparameters.WeightDecay,
         save_total_limit=2,
         metric_for_best_model='accuracy',

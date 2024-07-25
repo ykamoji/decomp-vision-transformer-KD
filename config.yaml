@@ -20,7 +20,7 @@ FineTuning:
     TrainBatchSize: 32
     EvalBatchSize: 32
     Epochs: 1
-    Lr: 0.003
+    Lr: 0.00005
     WeightDecay: 0.3
 
 Distillation:
@@ -38,7 +38,7 @@ Distillation:
     TrainBatchSize: 32
     EvalBatchSize: 32
     Epochs: 1
-    Lr: 0.003
+    Lr: 0.00005
     WeightDecay: 0.3
   RandomWeights: False
   UseDistTokens: False
