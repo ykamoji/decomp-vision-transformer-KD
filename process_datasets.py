@@ -65,11 +65,11 @@ def build_dataset(is_train, Args, show_details=True):
         if DataSet.Name == 'imageNet':
 
             dataset_train = load_dataset('imagefolder', split=f"train[:{DataSet.Train}]", verification_mode='no_checks',
-                                         data_dir=DataSet.Path)
+                                         data_dir=DataSet.Path, streaming=True)
             num_labels = 1000
         else:
             dataset_train = load_dataset(DataSet.Name, split=f"train[:{DataSet.Train}]", verification_mode='no_checks',
-                                         cache_dir=DataSet.Path + "/train")
+                                         cache_dir=DataSet.Path + "/train", streaming=True)
 
             num_labels = len(set(dataset_train[label_key]))
 
@@ -81,11 +81,11 @@ def build_dataset(is_train, Args, show_details=True):
 
     if DataSet.Name == 'imageNet':
         dataset_test = load_dataset('imagefolder', split=f"validation[:{DataSet.Test}]",
-                                    data_dir=DataSet.Path)
+                                    data_dir=DataSet.Path, streaming=True)
         num_labels = 1000
     else:
         dataset_test = load_dataset(DataSet.Name, split=f"test[:{DataSet.Test}]", verification_mode='no_checks',
-                                    cache_dir=DataSet.Path + "/test")
+                                    cache_dir=DataSet.Path + "/test", streaming=True)
 
     prepared_test = dataset_test.with_transform(preprocess)
 
