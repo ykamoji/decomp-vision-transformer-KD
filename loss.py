@@ -1,8 +1,10 @@
 from transformers import Trainer
+from transformers import ViTImageProcessor, DeiTImageProcessor
+from utils.featureUtils import get_device
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils.featureUtils import get_device
+from PIL import Image
 
 
 class DistillationTrainer(Trainer):
@@ -11,13 +13,8 @@ class DistillationTrainer(Trainer):
                  student_model=None,
                  temperature=None,
                  alpha=None,
-                 distillation_token=False,
                  student_loss_fn=F.cross_entropy,
-                 distillation_type='soft',
-                 use_attribution_loss=False,
-                 use_attention_loss=False,
-                 use_hidden_loss=False,
-                 use_ats_loss=False,
+                 configArgs=None,
                  writer=None,
                  *args, **kwargs):
         super().__init__(model=student_model, *args, **kwargs)
@@ -30,15 +27,16 @@ class DistillationTrainer(Trainer):
         self.teacher.eval()
         self.temperature = temperature
         self.alpha = alpha
+        self.configArgs = configArgs
 
-        self.distillation_token = distillation_token
+        self.distillation_token = configArgs.Distillation.UseDistTokens
         self.student_loss_fn = student_loss_fn
-        self.distillation_type = distillation_type
+        self.distillation_type = configArgs.Distillation.DistillationType
 
-        self.use_attribution_loss = use_attribution_loss
-        self.use_attention_loss = use_attention_loss
-        self.use_hidden_loss = use_hidden_loss
-        self.use_ats_loss = use_ats_loss
+        self.use_attribution_loss = configArgs.Distillation.UseAttributionLoss
+        self.use_attention_loss = configArgs.Distillation.UseAttentionLoss
+        self.use_hidden_loss = configArgs.Distillation.UseHiddenLoss
+        self.use_ats_loss = configArgs.Distillation.UseATSLoss
         self.attribution_loss_fn = nn.MSELoss()
         self.ats_loss_fn = nn.MSELoss()
 
@@ -223,7 +221,27 @@ class DistillationTrainer(Trainer):
         if self.current_epoch != self.state.epoch and self.state.global_step % self.state.logging_steps == 0:
             self.writer.add_scalar(key, value, global_step=self.state.global_step, walltime=5)
 
+    def processInputs(self, inputs):
+
+        Model = self.configArgs.Distillation.Model
+
+        if 'deit' in Model.Name:
+            feature_extractor = DeiTImageProcessor.from_pretrained(Model.Name, cache_dir=Model.CachePath)
+        else:
+            feature_extractor = ViTImageProcessor.from_pretrained(Model.Name, cache_dir=Model.CachePath)
+
+        images = [Image.open(self.configArgs.Common.DataSet.Path + '/' + path) for path in inputs['inputPath']]
+        batches = [img.convert("RGB") if img.mode != 'RGB' else img for img in images]
+        image_inputs = feature_extractor(batches, return_tensors='pt')
+        return {
+            'pixel_values': image_inputs['pixel_values'],
+            'labels': inputs['labels']
+        }
+
     def compute_loss(self, student, inputs, return_outputs=False):
+
+        if self.configArgs.Common.DataSet.Name == 'imageNet':
+            inputs = self.processInputs(inputs)
 
         for k, v in inputs.items():
             inputs[k] = v.to(get_device())

@@ -12,6 +12,12 @@ def collate_fn(batch):
     }
 
 
+def collate_imageNet_fn(batch):
+    return {
+        'inputPath': [x['inputPath'] for x in batch],
+        'labels': torch.tensor([x['label'] for x in batch])
+    }
+
 def build_metrics(metric_args):
     metrics_to_evaluate = metric_args.Name.split(',')
     for m in metrics_to_evaluate:
@@ -43,6 +49,7 @@ def build_dataset(is_train, Args, show_details=True):
         feature_extractor = DeiTImageProcessor.from_pretrained(Model.Name, cache_dir=Model.CachePath)
     else:
         feature_extractor = ViTImageProcessor.from_pretrained(Model.Name, cache_dir=Model.CachePath)
+
     label_key = DataSet.Label
 
     if DataSet.Name == 'imageNet':
@@ -63,31 +70,34 @@ def build_dataset(is_train, Args, show_details=True):
     if is_train:
 
         if DataSet.Name == 'imageNet':
-
-            dataset_train = load_dataset('imagefolder', split=f"train[:{DataSet.Train}]", verification_mode='no_checks',
-                                         data_dir=DataSet.Path)
+            dataset_train = load_dataset('csv', split=f"train[:{DataSet.Train}]", verification_mode='no_checks',
+                                         data_files={"train":DataSet.Path + "/metadata_train.csv"})
             num_labels = 1000
+
+            prepared_train = dataset_train
         else:
             dataset_train = load_dataset(DataSet.Name, split=f"train[:{DataSet.Train}]", verification_mode='no_checks',
                                          cache_dir=DataSet.Path + "/train")
 
             num_labels = len(set(dataset_train[label_key]))
 
+            prepared_train = dataset_train.with_transform(preprocess)
+
         if show_details:
             print(f"\nTraining info:{dataset_train}")
             print(f"\nNumber of labels = {num_labels}, {dataset_train.features[label_key]}")
 
-        prepared_train = dataset_train.with_transform(preprocess)
-
     if DataSet.Name == 'imageNet':
-        dataset_test = load_dataset('imagefolder', split=f"validation[:{DataSet.Test}]",
-                                    data_dir=DataSet.Path)
+        dataset_test = load_dataset('csv', split=f"validation[:{DataSet.Test}]",
+                                    data_files={"validation":DataSet.Path + "/metadata_valid.csv"})
+
+        prepared_test = dataset_test
         num_labels = 1000
     else:
         dataset_test = load_dataset(DataSet.Name, split=f"test[:{DataSet.Test}]", verification_mode='no_checks',
                                     cache_dir=DataSet.Path + "/test")
 
-    prepared_test = dataset_test.with_transform(preprocess)
+        prepared_test = dataset_test.with_transform(preprocess)
 
     if show_details:
         print(f"\nTesting info:{dataset_test}")

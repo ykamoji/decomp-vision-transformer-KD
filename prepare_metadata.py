@@ -6,6 +6,7 @@ import yaml
 import json
 import math
 import threading
+from tqdm import tqdm
 from utils.argUtils import CustomObject, get_yaml_loader
 from typing import Optional, Any
 
@@ -14,7 +15,9 @@ BATCH_SIZE = 1000
 
 def create_metadata(dataSet_path):
 
-    if not os.path.exists(f"{dataSet_path}/metadata.csv"):
+    if not os.path.exists(f"{dataSet_path}/metadata.csv") or \
+            not os.path.exists(f"{dataSet_path}/metadata_train.csv") or \
+            not os.path.exists(f"{dataSet_path}/metadata_valid.csv"):
 
         mat = scipy.io.loadmat(f"{dataSet_path}/meta.mat")
         id2label = {}
@@ -65,7 +68,7 @@ def create_metadata(dataSet_path):
                 self.local_labels = []
 
             def run(self) -> None:
-                print(f"[START] {self.tid}")
+                # print(f"[START] {self.tid}")
                 try:
                     labels = class_labels[self.begin: self.end]
                     for class_label in labels:
@@ -81,7 +84,7 @@ def create_metadata(dataSet_path):
                     print(e)
 
             def join(self, timeout: Optional[float] = ...) -> list[Any]:
-                print(f"[END] {self.tid}")
+                # print(f"[END] {self.tid}")
                 return self.local_labels
 
         batches = math.ceil(len(class_labels) / BATCH_SIZE)
@@ -95,7 +98,7 @@ def create_metadata(dataSet_path):
             # MetadataCreateThreads.append((i + 1, i * BATCH_SIZE, (i + 1) * BATCH_SIZE))
 
         data_to_write = []
-        for create_thread in MetadataCreateThreads:
+        for create_thread in tqdm(MetadataCreateThreads):
             data_to_write.extend(create_thread.join())
 
         # print(MetadataCreateThreads)
@@ -107,11 +110,22 @@ def create_metadata(dataSet_path):
         data_to_write = sorted(data_to_write, key=lambda data: data[0])
         print(f"Time taken [Sorting] = {((time.time() - start) / 60):.5f} seconds")
 
+        for dataset in ["","_train","_valid"]:
+            with open(f"{dataSet_path}/metadata{dataset}.csv", 'a', newline='') as metadata:
+                writer = csv.writer(metadata)
+                writer.writerow(["inputPath", "label"])
+
         start = time.time()
+        for data in tqdm(data_to_write):
+            split = "train" if data[0].startswith("train") else "valid"
+            with open(f"{dataSet_path}/metadata_{split}.csv", 'a', newline='') as metadata:
+                writer = csv.writer(metadata)
+                writer.writerow(data)
+
         with open(f"{dataSet_path}/metadata.csv", 'a', newline='') as metadata:
             writer = csv.writer(metadata)
-            writer.writerow(["file_name", "label"])
             writer.writerows(data_to_write)
+
         print(f"Time taken [Writing] = {((time.time() - start) / 60):.5f} seconds")
 
         # start = time.time()
