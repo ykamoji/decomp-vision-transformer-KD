@@ -1,4 +1,4 @@
-from process_datasets import build_dataset, build_metrics, collate_fn
+from process_datasets import build_dataset, build_metrics, collate_fn, collate_imageNet_fn
 from transformers import TrainingArguments, ViTConfig
 from models_utils import ViTForImageClassification, DeiTForImageClassificationWithTeacher
 from transformers.training_args import OptimizerNames
@@ -84,19 +84,14 @@ def run_distillation(Args):
         teacher_model=teacher_model,
         student_model=student_model,
         args=distillation_args,
-        data_collator=collate_fn,
+        data_collator=collate_fn if Args.Common.DataSet.Name != "imageNet" else collate_imageNet_fn,
         compute_metrics=compute_metrics,
         train_dataset=training_data,
         eval_dataset=testing_data,
         temperature=5,
         alpha=0.5,
         writer=writer,
-        distillation_token=Args.Distillation.UseDistTokens,
-        distillation_type=Args.Distillation.DistillationType,
-        use_attribution_loss=Args.Distillation.UseAttributionLoss,
-        use_attention_loss=Args.Distillation.UseAttentionLoss,
-        use_ats_loss=Args.Distillation.UseATSLoss,
-        use_hidden_loss=Args.Distillation.UseHiddenLoss
+        configArgs=Args
     )
 
     train_results = distillation_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)

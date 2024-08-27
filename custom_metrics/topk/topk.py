@@ -57,8 +57,8 @@ class Topk(evaluate.Metric):
         predictions = np.array(predictions)
         references = np.array(references)
 
-        print(predictions.shape)
-        print(references.shape)
+        # print(predictions.shape)
+        # print(references.shape)
 
         return {
             f"top_{k}_accuracy": float(
