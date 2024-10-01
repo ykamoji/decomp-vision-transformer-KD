@@ -1186,10 +1186,8 @@ class DeiTForImageClassificationWithTeacher(DeiTPreTrainedModel):
         if is_student:
             if outputs.attributions:
                 for layer in range(len(outputs.attributions)):
-                    trans_attr = self.attribution_classifier(outputs.attributions[layer][4])
-                    transformed_attribution = transformed_attribution \
-                                              + ((outputs.attributions[layer][:4] + (trans_attr,)
-                                                  + outputs.attributions[layer][5:]),)
+                    trans_attr = self.attribution_classifier(outputs.attributions[layer])
+                    transformed_attribution = transformed_attribution + (trans_attr,)
             if outputs.hidden_states:
                 for layer in range(len(outputs.hidden_states)):
                     trans_hidden = self.layer_classifier(outputs.hidden_states[layer])
@@ -1203,7 +1201,7 @@ class DeiTForImageClassificationWithTeacher(DeiTPreTrainedModel):
             logits=logits,
             cls_logits=cls_logits,
             distillation_logits=distillation_logits,
-            hidden_states=outputs.hidden_states,
+            hidden_states=outputs.hidden_states if not transformed_layer else transformed_layer,
             attentions=outputs.attentions,
             attributions=outputs.attributions if not transformed_attribution else transformed_attribution,
             ats_attentions=outputs.ats_attentions

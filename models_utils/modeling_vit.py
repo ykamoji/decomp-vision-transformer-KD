@@ -1107,10 +1107,8 @@ class ViTForImageClassification(ViTPreTrainedModel):
         if is_student:
             if outputs.attributions:
                 for layer in range(len(outputs.attributions)):
-                    trans_attr = self.attribution_classifier(outputs.attributions[layer][4])
-                    transformed_attribution = transformed_attribution \
-                                              + ((outputs.attributions[layer][:4] + (trans_attr,)
-                                                  + outputs.attributions[layer][5:]),)
+                    trans_attr = self.attribution_classifier(outputs.attributions[layer])
+                    transformed_attribution = transformed_attribution + (trans_attr,)
             if outputs.hidden_states:
                 for layer in range(len(outputs.hidden_states)):
                     trans_hidden = self.layer_classifier(outputs.hidden_states[layer])

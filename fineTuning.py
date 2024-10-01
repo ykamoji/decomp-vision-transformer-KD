@@ -18,12 +18,12 @@ def get_fine_tuning_trainer_args(output_path, hyperparameters):
         per_device_eval_batch_size=hyperparameters.EvalBatchSize,
         evaluation_strategy="steps",
         num_train_epochs=hyperparameters.Epochs,
-        save_steps=20,
-        eval_steps=20,
-        logging_steps=10,
+        save_steps=hyperparameters.Steps.SaveSteps,
+        eval_steps=hyperparameters.Steps.EvalSteps,
+        logging_steps=hyperparameters.Steps.LoggingSteps,
         learning_rate=hyperparameters.Lr,
-        lr_scheduler_type='cosine',
-        warmup_ratio=0.1,
+        # lr_scheduler_type='cosine',
+        warmup_ratio=hyperparameters.WarmUpRatio,
         weight_decay=hyperparameters.WeightDecay,
         save_total_limit=2,
         metric_for_best_model='accuracy',
@@ -33,7 +33,7 @@ def get_fine_tuning_trainer_args(output_path, hyperparameters):
         push_to_hub=False,
         load_best_model_at_end=True,
         seed=42,
-        gradient_accumulation_steps=1,
+        gradient_accumulation_steps=hyperparameters.Steps.GradientAccumulation,
     )
 
 

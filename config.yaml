@@ -22,6 +22,12 @@ FineTuning:
     Epochs: 1
     Lr: 0.00005
     WeightDecay: 0.3
+    WarmUpRatio: 0.03
+    Steps:
+      SaveSteps: 1000
+      EvalSteps: 1000
+      LoggingSteps: 100
+      GradientAccumulation: 4
 
 Distillation:
   Action: True
@@ -35,11 +41,20 @@ Distillation:
     CachePath: model/
     OutputPath: distilled-model/
   Hyperparameters:
-    TrainBatchSize: 32
+    TrainBatchSize: 8
     EvalBatchSize: 32
     Epochs: 1
     Lr: 0.00005
     WeightDecay: 0.3
+    WarmUpRatio: 0.03
+    Steps:
+      SaveSteps: 1000
+      EvalSteps: 1000
+      LoggingSteps: 100
+      GradientAccumulation: 4
+    KD:
+      Alpha: 0.5
+      Temperature: 5
   RandomWeights: False
   UseDistTokens: False
   DistillationType: soft # Set soft for KL divergence loss using probability or hard for cross entropy loss with logits

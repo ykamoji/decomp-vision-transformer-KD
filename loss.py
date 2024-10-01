@@ -173,7 +173,27 @@ class DistillationTrainer(Trainer):
             # student_attr = student_attr_without_dist
             student_attr = student_attr[:, :, 1:]
 
-        return self.attribution_loss_fn(teacher_attr, student_attr)
+        if teacher_attr.shape[0] != student_attr.shape[0]:
+            attr_loss = 0.
+            teacher_layer_num = len(teacher_attr)
+            student_layer_num = len(student_attr)
+            assert teacher_layer_num % student_layer_num == 0
+            layers_per_block = int(teacher_layer_num / student_layer_num)
+            new_teacher_atts = [teacher_attr[i * layers_per_block + layers_per_block - 1]
+                                for i in range(student_layer_num)]
+            for student_att, teacher_att in zip(student_attr, new_teacher_atts):
+                student_att = torch.where(student_att <= -1e2,
+                                          torch.zeros_like(student_att),
+                                          student_att)
+                teacher_att = torch.where(teacher_att <= -1e2,
+                                          torch.zeros_like(teacher_att),
+                                          teacher_att)
+
+                attr_loss += self.attribution_loss_fn(teacher_att, student_att)
+
+            return attr_loss
+        else:
+            return self.attribution_loss_fn(teacher_attr, student_attr)
 
     def _ats_loss(self, teacher_ats, student_ats):
         num_layers = len(teacher_ats)
@@ -208,7 +228,7 @@ class DistillationTrainer(Trainer):
                     print(f"Attention Layers:\nDepth = {len(attn_layers)}\nShape = {attn_layers[0].shape}")
 
                 if self.use_attribution_loss:
-                    print(f"Attributions Layers:\nDepth = {len(attr_layers)}\nShape = {attr_layers[0][4].shape}")
+                    print(f"Attributions Layers:\nDepth = {len(attr_layers)}\nShape = {attr_layers[0].shape}")
 
                 if self.use_ats_loss:
                     print(f"ATS Layers:\nDepth = {len(ats_layers)}\nShape = {ats_layers[0].shape}")
@@ -268,8 +288,8 @@ class DistillationTrainer(Trainer):
             if self.use_ats_loss:
                 kwargs = {**kwargs, **{"output_ats": 1}}
 
-            # s_kwargs = {**kwargs, **{"is_student":True}}
-            s_kwargs = kwargs
+            s_kwargs = {**kwargs, **{"is_student":True}}
+            # s_kwargs = kwargs
 
         student_output = self.student(**student_inputs, **s_kwargs)
 
