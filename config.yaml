@@ -72,7 +72,7 @@ Distillation:
 
 Metadata:
   Limit: True
-  Value: 100
+  Value: 0.1
 
 Visualization:
   Action: False
