@@ -4,12 +4,11 @@ from models_utils import ViTForImageClassification, DeiTForImageClassificationWi
 from transformers.training_args import OptimizerNames
 from loss import DistillationTrainer
 from torch.utils.tensorboard import SummaryWriter
-from utils.pathUtils import prepare_output_path, get_model_path
+from utils.pathUtils import prepare_output_path, get_model_path, get_checkpoint_path
+from utils.commonUtils import start_training
 import warnings
 
 warnings.filterwarnings('ignore')
-
-IGNORE_KEYS = ['cls_logits', 'distillation_logits', 'hidden_states', 'attentions', 'attributions']
 
 
 def get_distillation_training_args(output_path, hyperparameters):
@@ -24,7 +23,7 @@ def get_distillation_training_args(output_path, hyperparameters):
         eval_steps=hyperparameters.Steps.EvalSteps,
         logging_steps=hyperparameters.Steps.LoggingSteps,
         learning_rate=hyperparameters.Lr,
-        # lr_scheduler_type='cosine',
+        lr_scheduler_type='cosine',
         warmup_ratio=hyperparameters.WarmUpRatio,
         weight_decay=hyperparameters.WeightDecay,
         save_total_limit=2,
@@ -33,7 +32,7 @@ def get_distillation_training_args(output_path, hyperparameters):
         optim=OptimizerNames.ADAMW_HF,
         remove_unused_columns=False,
         push_to_hub=False,
-        load_best_model_at_end=False,
+        load_best_model_at_end=True,
         seed=42,
         gradient_accumulation_steps=hyperparameters.Steps.GradientAccumulation,
         label_names=['labels'],
@@ -42,7 +41,10 @@ def get_distillation_training_args(output_path, hyperparameters):
 
 def run_distillation(Args):
     try:
-        fine_tuned_model_path = get_model_path('FineTuned', Args)
+        if Args.Distillation.Model.UseLocal:
+            fine_tuned_model_path = get_model_path('FineTuned', Args)
+        else:
+            fine_tuned_model_path = ''
         teacher_model = ViTForImageClassification.from_pretrained(fine_tuned_model_path)
     except Exception as e:
         print(f"Warning: {e}. Using huggingface pretrained model.")
@@ -59,18 +61,22 @@ def run_distillation(Args):
     else:
         classificationMode = ViTForImageClassification
 
+    model = Args.Distillation.StudentModel.Name
+
+    if Args.Distillation.StudentModel.LoadCheckPoint:
+        model = get_checkpoint_path('Distilled', Args)
+
     if Args.Distillation.RandomWeights:
 
-        student_config = ViTConfig.from_pretrained(Args.Distillation.StudentModel.Name,
-                                                   num_labels=teacher_model.config.num_labels,
+        student_config = ViTConfig.from_pretrained(model, num_labels=teacher_model.config.num_labels,
+                                                   cache_dir=Args.Distillation.StudentModel.CachePath,
                                                    ignore_mismatched_sizes=True)
 
         student_model = classificationMode._from_config(config=student_config)
 
     else:
 
-        student_model = classificationMode.from_pretrained(Args.Distillation.StudentModel.Name,
-                                                           num_labels=teacher_model.config.num_labels,
+        student_model = classificationMode.from_pretrained(model, num_labels=teacher_model.config.num_labels,
                                                            cache_dir=Args.Distillation.StudentModel.CachePath,
                                                            ignore_mismatched_sizes=True)
 
@@ -94,18 +100,7 @@ def run_distillation(Args):
         configArgs=Args
     )
 
-    with open(output_path + '/training/' + 'config.json', 'x', encoding='utf-8') as f:
-        f.write(Args.toJSON())
-
-    train_results = distillation_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)
-
-    distillation_trainer.save_model(output_dir=output_path + Args.Distillation.StudentModel.OutputPath)
-    distillation_trainer.log_metrics("train", train_results.metrics)
-    distillation_trainer.save_metrics("train", train_results.metrics)
-    distillation_trainer.save_state()
-
-    metrics = distillation_trainer.evaluate(testing_data, ignore_keys=IGNORE_KEYS)
-    distillation_trainer.log_metrics("eval", metrics)
-    distillation_trainer.save_metrics("eval", metrics)
+    start_training(Args, distillation_trainer, Args.Distillation.StudentModel.LoadCheckPoint, model, output_path,
+                   Args.Distillation.StudentModel.OutputPath, testing_data)
 
     writer.close()

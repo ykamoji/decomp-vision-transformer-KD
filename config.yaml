@@ -8,7 +8,7 @@ Common:
     Label: label
     Path: !ENV ${DATASET_PATH} # Update the dataset path here or add DATASET_PATH to environment.
     Train: '' # Set <>% or <> exact number of batches to train
-    Test: '20' # Set <>% or <> exact number of batches to test
+    Test: '' # Set <>% or <> exact number of batches to test
 
 FineTuning:
   Action: False
@@ -16,22 +16,26 @@ FineTuning:
     Name: google/vit-large-patch16-224
     CachePath : model/
     OutputPath: tuned-model/
+    Index: -1
+    LoadCheckPoint: True
+    CheckPointIndex: -1
   Hyperparameters:
-    TrainBatchSize: 2
+    TrainBatchSize: 8
     EvalBatchSize: 32
     Epochs: 1
     Lr: 0.00005
     WeightDecay: 0.3
     WarmUpRatio: 0.03
     Steps:
-      SaveSteps: 2
-      EvalSteps: 2
-      LoggingSteps: 2
+      SaveSteps: 1000
+      EvalSteps: 1000
+      LoggingSteps: 100
       GradientAccumulation: 1
 
 Distillation:
-  Action: True
+  Action: False
   Model:
+    UseLocal: False
     Name: google/vit-large-patch16-224
     CachePath: model/
     OutputPath: tuned-model/
@@ -40,17 +44,20 @@ Distillation:
     Name: google/vit-base-patch16-224
     CachePath: model/
     OutputPath: distilled-model/
+    Index: -1
+    LoadCheckPoint: True
+    CheckPointIndex: -1
   Hyperparameters:
-    TrainBatchSize: 2
+    TrainBatchSize: 8
     EvalBatchSize: 32
     Epochs: 1
     Lr: 0.00005
     WeightDecay: 0.3
     WarmUpRatio: 0.03
     Steps:
-      SaveSteps: 2
-      EvalSteps: 2
-      LoggingSteps: 2
+      SaveSteps: 1000
+      EvalSteps: 1000
+      LoggingSteps: 100
       GradientAccumulation: 1
     KD:
       Alpha: 0.5

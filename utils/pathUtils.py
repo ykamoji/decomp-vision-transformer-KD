@@ -30,13 +30,35 @@ def check_model_path(root, model, dataset, index):
     model_path = root + model.split('/')[-1] + '/' + dataset
     if os.path.exists(model_path):
         if index == -1:
-            latest_index = max([int(run.split("run_")[-1]) for run in os.listdir(model_path)])
+            latest_index = max([int(run.split("run_")[-1]) for run in os.listdir(model_path) if "run_" in run])
         else:
             latest_index = index
     else:
         raise Exception("Fine tuned model not found !")
     path = model_path + f"/run_{latest_index}"
     return path
+
+
+def get_checkpoint_path(step, Args):
+    root = Args.Common.Results + step + '/'
+
+    if Args.Distillation.Action:
+        Model = Args.Distillation.StudentModel
+    else:
+        Model = Args.FineTuning.Model
+
+    model_path = check_model_path(root, Model.Name, Args.Common.DataSet.Name, Model.Index)
+    model_path += '/training/'
+    if os.path.exists(model_path):
+        if Model.CheckPointIndex == -1:
+            latest_index = max([int(chk.split("checkpoint-")[-1]) for chk in os.listdir(model_path) if "checkpoint-" in chk])
+        else:
+            latest_index = Model.CheckPointIndex
+    else:
+        raise Exception("Checkpoint not found !")
+
+    model_path += f"checkpoint-{latest_index}"
+    return model_path
 
 
 def get_model_path(step, Args):
