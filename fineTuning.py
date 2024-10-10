@@ -2,12 +2,11 @@ from process_datasets import build_dataset, build_metrics, collate_fn, collate_I
 from transformers import Trainer, TrainingArguments
 from models_utils import ViTForImageClassification, DeiTForImageClassification
 from transformers.training_args import OptimizerNames
-from utils.pathUtils import prepare_output_path
+from utils.pathUtils import prepare_output_path, get_checkpoint_path
+from utils.commonUtils import start_training
 import warnings
 
 warnings.filterwarnings('ignore')
-
-IGNORE_KEYS = ['cls_logits', 'distillation_logits', 'hidden_states', 'attentions', 'attributions']
 
 
 def get_fine_tuning_trainer_args(output_path, hyperparameters):
@@ -22,7 +21,7 @@ def get_fine_tuning_trainer_args(output_path, hyperparameters):
         eval_steps=hyperparameters.Steps.EvalSteps,
         logging_steps=hyperparameters.Steps.LoggingSteps,
         learning_rate=hyperparameters.Lr,
-        # lr_scheduler_type='cosine',
+        lr_scheduler_type='cosine',
         warmup_ratio=hyperparameters.WarmUpRatio,
         weight_decay=hyperparameters.WeightDecay,
         save_total_limit=2,
@@ -52,6 +51,9 @@ def fine_tuning(Args):
     else:
         classificationMode = ViTForImageClassification
 
+    if Args.FineTuning.Model.LoadCheckPoint:
+        model = get_checkpoint_path('FineTuned', Args)
+
     pretrained_model = classificationMode.from_pretrained(model, num_labels=num_labels,
                                                                  cache_dir=Args.FineTuning.Model.CachePath,
                                                                  ignore_mismatched_sizes=True)
@@ -65,16 +67,5 @@ def fine_tuning(Args):
         eval_dataset=testing_data,
     )
 
-    with open(output_path + '/training/'+'config.json', 'x', encoding='utf-8') as f:
-        f.write(Args.toJSON())
-
-    train_results = fine_tune_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)
-
-    fine_tune_trainer.save_model(output_dir=output_path + Args.FineTuning.Model.OutputPath)
-    fine_tune_trainer.log_metrics("train", train_results.metrics)
-    fine_tune_trainer.save_metrics("train", train_results.metrics)
-    fine_tune_trainer.save_state()
-
-    metrics = fine_tune_trainer.evaluate(testing_data, ignore_keys=IGNORE_KEYS)
-    fine_tune_trainer.log_metrics("eval", metrics)
-    fine_tune_trainer.save_metrics("eval", metrics)
+    start_training(Args, fine_tune_trainer, Args.FineTuning.Model.LoadCheckPoint, model, output_path,
+                   Args.FineTuning.Model.OutputPath, testing_data)
