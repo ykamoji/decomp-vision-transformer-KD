@@ -105,11 +105,11 @@ def build_dataset(is_train, Args, show_details=True):
         if DataSet.Name == 'imageNet':
             dataset_train = load_dataset('csv', split=f"train[:{DataSet.Train}]", verification_mode='no_checks',
                                          data_files={"train":DataSet.Path + "/metadata_train.csv"})
-            prepared_train = dataset_train.shuffle(seed=42)
+            prepared_train = dataset_train
         else:
             dataset_train = load_dataset(DataSet.Name, split=f"train[:{DataSet.Train}]", verification_mode='no_checks',
                                          cache_dir=DataSet.Path + "/train")
-            prepared_train = dataset_train.with_transform(preprocess).shuffle(seed=42)
+            prepared_train = dataset_train.with_transform(preprocess)
 
         num_training_labels = len(set(dataset_train[label_key]))
 
