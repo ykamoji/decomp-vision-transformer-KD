@@ -52,7 +52,7 @@ class Topk(evaluate.Metric):
             reference_urls=["https://scikit-learn.org/stable/modules/generated/sklearn.metrics.top_k_accuracy_score.html"],
         )
 
-    def _compute(self, predictions, references, normalize=True, sample_weight=None, k=5, labels=list(range(1000))):
+    def _compute(self, predictions, references, normalize=True, sample_weight=None, k=5, labels=None):
 
         predictions = np.array(predictions)
         references = np.array(references)

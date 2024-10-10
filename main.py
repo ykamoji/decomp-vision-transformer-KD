@@ -16,7 +16,7 @@ def start(configPath):
     Args = json.loads(x, object_hook=lambda d: CustomObject(**d))
 
     if Args.Common.DataSet.Name == 'imageNet':
-        create_metadata(Args.Common.DataSet.Path)
+        create_metadata(Args.Common.DataSet.Path, Args.Metadata)
 
     if Args.FineTuning.Action:
         fine_tuning(Args)

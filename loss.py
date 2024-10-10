@@ -1,10 +1,9 @@
 from transformers import Trainer
-from transformers import ViTImageProcessor, DeiTImageProcessor
 from utils.featureUtils import get_device
+from process_datasets import processInputs
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from PIL import Image
 
 
 class DistillationTrainer(Trainer):
@@ -241,27 +240,10 @@ class DistillationTrainer(Trainer):
         if self.current_epoch != self.state.epoch and self.state.global_step % self.state.logging_steps == 0:
             self.writer.add_scalar(key, value, global_step=self.state.global_step, walltime=5)
 
-    def processInputs(self, inputs):
-
-        Model = self.configArgs.Distillation.Model
-
-        if 'deit' in Model.Name:
-            feature_extractor = DeiTImageProcessor.from_pretrained(Model.Name, cache_dir=Model.CachePath)
-        else:
-            feature_extractor = ViTImageProcessor.from_pretrained(Model.Name, cache_dir=Model.CachePath)
-
-        images = [Image.open(self.configArgs.Common.DataSet.Path + '/' + path) for path in inputs['inputPath']]
-        batches = [img.convert("RGB") if img.mode != 'RGB' else img for img in images]
-        image_inputs = feature_extractor(batches, return_tensors='pt')
-        return {
-            'pixel_values': image_inputs['pixel_values'],
-            'labels': inputs['labels']
-        }
-
     def compute_loss(self, student, inputs, return_outputs=False):
 
         if self.configArgs.Common.DataSet.Name == 'imageNet':
-            inputs = self.processInputs(inputs)
+            inputs = processInputs(inputs, self.configArgs.Distillation.Model)
 
         for k, v in inputs.items():
             inputs[k] = v.to(get_device())

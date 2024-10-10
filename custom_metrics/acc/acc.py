@@ -94,7 +94,7 @@ class Acc(evaluate.Metric):
             reference_urls=["https://scikit-learn.org/stable/modules/generated/sklearn.metrics.accuracy_score.html"],
         )
 
-    def _compute(self, predictions, references, normalize=True, sample_weight=None):
+    def _compute(self, predictions, references, normalize=True, sample_weight=None, labels=None):
 
         predictions = np.argmax(predictions, axis=1)
         return {

@@ -13,33 +13,33 @@ from typing import Optional, Any
 BATCH_SIZE = 1000
 
 
-def create_metadata(dataSet_path):
+def create_metadata(dataSetPath, Metadata):
 
-    if not os.path.exists(f"{dataSet_path}/metadata.csv") or \
-            not os.path.exists(f"{dataSet_path}/metadata_train.csv") or \
-            not os.path.exists(f"{dataSet_path}/metadata_valid.csv"):
+    if not os.path.exists(f"{dataSetPath}/metadata.csv") or \
+            not os.path.exists(f"{dataSetPath}/metadata_train.csv") or \
+            not os.path.exists(f"{dataSetPath}/metadata_valid.csv"):
 
-        mat = scipy.io.loadmat(f"{dataSet_path}/meta.mat")
+        mat = scipy.io.loadmat(f"{dataSetPath}/meta.mat")
         id2label = {}
         validation_truth_map = {}
         for item in mat['synsets']:
             id2label[item[0][1][0]] = item[0][2][0]
             validation_truth_map[item[0][0][0][0]] = item[0][2][0]
 
-        with open(f"{dataSet_path}/ILSVRC2012_validation_ground_truth.txt", 'r') as f:
+        with open(f"{dataSetPath}/ILSVRC2012_validation_ground_truth.txt", 'r') as f:
             data = f.readlines()
 
         ground_truth_map = {}
         for idx, gt in enumerate(data):
             ground_truth_map[idx + 1] = gt.removesuffix('\n')
 
-        with open(f"{dataSet_path}/label2id.json", 'r') as f:
+        with open(f"{dataSetPath}/label2id.json", 'r') as f:
             label2id = json.load(f)
 
         class_labels = []
         train_count, valid_count = 0, 0
         print("Collecting class names...")
-        for root, dirs, files in os.walk(f"{dataSet_path}"):
+        for root, dirs, files in os.walk(f"{dataSetPath}"):
             # class_labels.extend([folder.split('.tar')[0] for folder in files if '.tar' in folder])
 
             if 'train' in root:
@@ -73,12 +73,14 @@ def create_metadata(dataSet_path):
                     labels = class_labels[self.begin: self.end]
                     for class_label in labels:
                         if 'train/' in class_label:
-                            label = id2label[class_label.split('/')[-1].split('_')[0]]
+                            label_key = id2label[class_label.split('/')[-1].split('_')[0]]
                         else:
-                            label = validation_truth_map[
+                            label_key = validation_truth_map[
                                 int(ground_truth_map[int(class_label.split('_')[-1].split('.')[0])])]
 
-                        self.local_labels.append([class_label, label2id[label]])
+                        label = label2id[label_key]
+                        if not Metadata.Limit or label < Metadata.Value:
+                            self.local_labels.append([class_label, label])
 
                 except Exception as e:
                     print(e)
@@ -111,18 +113,24 @@ def create_metadata(dataSet_path):
         print(f"Time taken [Sorting] = {((time.time() - start) / 60):.5f} seconds")
 
         for dataset in ["","_train","_valid"]:
-            with open(f"{dataSet_path}/metadata{dataset}.csv", 'a', newline='') as metadata:
+            with open(f"{dataSetPath}/metadata{dataset}.csv", 'a', newline='') as metadata:
                 writer = csv.writer(metadata)
                 writer.writerow(["inputPath", "label"])
 
         start = time.time()
+        train_count, valid_count = 0, 0
         for data in tqdm(data_to_write):
             split = "train" if data[0].startswith("train") else "valid"
-            with open(f"{dataSet_path}/metadata_{split}.csv", 'a', newline='') as metadata:
+            with open(f"{dataSetPath}/metadata_{split}.csv", 'a', newline='') as metadata:
                 writer = csv.writer(metadata)
                 writer.writerow(data)
 
-        with open(f"{dataSet_path}/metadata.csv", 'a', newline='') as metadata:
+            if split == "train":
+                train_count += 1
+            else:
+                valid_count += 1
+
+        with open(f"{dataSetPath}/metadata.csv", 'a', newline='') as metadata:
             writer = csv.writer(metadata)
             writer.writerows(data_to_write)
 
@@ -149,6 +157,7 @@ def create_metadata(dataSet_path):
         # print(f"Time taken [Writing] = {((time.time() - start) / 60):.5f} seconds")
 
         print("Metadata created !")
+        print(f"Prepaid data:\n\tTraining: {train_count}\n\tValidation: {valid_count}")
 
 
 if __name__ == '__main__':
@@ -159,4 +168,4 @@ if __name__ == '__main__':
     x = json.dumps(config)
     Args = json.loads(x, object_hook=lambda d: CustomObject(**d))
 
-    create_metadata(Args.Common.DataSet.Path)
+    create_metadata(Args.Common.DataSet.Path, Args.Metadata)

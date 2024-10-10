@@ -33,7 +33,7 @@ def get_distillation_training_args(output_path, hyperparameters):
         optim=OptimizerNames.ADAMW_HF,
         remove_unused_columns=False,
         push_to_hub=False,
-        load_best_model_at_end=True,
+        load_best_model_at_end=False,
         seed=42,
         gradient_accumulation_steps=hyperparameters.Steps.GradientAccumulation,
         label_names=['labels'],
@@ -94,6 +94,9 @@ def run_distillation(Args):
         configArgs=Args
     )
 
+    with open(output_path + '/training/' + 'config.json', 'x', encoding='utf-8') as f:
+        f.write(Args.toJSON())
+
     train_results = distillation_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)
 
     distillation_trainer.save_model(output_dir=output_path + Args.Distillation.StudentModel.OutputPath)
@@ -106,6 +109,3 @@ def run_distillation(Args):
     distillation_trainer.save_metrics("eval", metrics)
 
     writer.close()
-
-    with open(output_path + '/training/' + 'config.json', 'x', encoding='utf-8') as f:
-        f.write(Args.toJSON())

@@ -8,7 +8,7 @@ Common:
     Label: label
     Path: !ENV ${DATASET_PATH} # Update the dataset path here or add DATASET_PATH to environment.
     Train: '' # Set <>% or <> exact number of batches to train
-    Test: '' # Set <>% or <> exact number of batches to test
+    Test: '20' # Set <>% or <> exact number of batches to test
 
 FineTuning:
   Action: False
@@ -17,17 +17,17 @@ FineTuning:
     CachePath : model/
     OutputPath: tuned-model/
   Hyperparameters:
-    TrainBatchSize: 32
+    TrainBatchSize: 2
     EvalBatchSize: 32
     Epochs: 1
     Lr: 0.00005
     WeightDecay: 0.3
     WarmUpRatio: 0.03
     Steps:
-      SaveSteps: 1000
-      EvalSteps: 1000
-      LoggingSteps: 100
-      GradientAccumulation: 4
+      SaveSteps: 2
+      EvalSteps: 2
+      LoggingSteps: 2
+      GradientAccumulation: 1
 
 Distillation:
   Action: True
@@ -41,17 +41,17 @@ Distillation:
     CachePath: model/
     OutputPath: distilled-model/
   Hyperparameters:
-    TrainBatchSize: 8
+    TrainBatchSize: 2
     EvalBatchSize: 32
     Epochs: 1
     Lr: 0.00005
     WeightDecay: 0.3
     WarmUpRatio: 0.03
     Steps:
-      SaveSteps: 1000
-      EvalSteps: 1000
-      LoggingSteps: 100
-      GradientAccumulation: 4
+      SaveSteps: 2
+      EvalSteps: 2
+      LoggingSteps: 2
+      GradientAccumulation: 1
     KD:
       Alpha: 0.5
       Temperature: 5
@@ -62,6 +62,10 @@ Distillation:
   UseATSLoss : False
   UseAttentionLoss: False
   UseHiddenLoss : False
+
+Metadata:
+  Limit: True
+  Value: 100
 
 Visualization:
   Action: False

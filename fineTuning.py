@@ -1,4 +1,4 @@
-from process_datasets import build_dataset, build_metrics, collate_fn
+from process_datasets import build_dataset, build_metrics, collate_fn, collate_ImageNet_fine_tuning_fn
 from transformers import Trainer, TrainingArguments
 from models_utils import ViTForImageClassification, DeiTForImageClassification
 from transformers.training_args import OptimizerNames
@@ -59,11 +59,14 @@ def fine_tuning(Args):
     fine_tune_trainer = Trainer(
         model=pretrained_model,
         args=fine_tune_args,
-        data_collator=collate_fn,
+        data_collator=collate_fn if Args.Common.DataSet.Name != "imageNet" else collate_ImageNet_fine_tuning_fn,
         compute_metrics=compute_metrics,
         train_dataset=training_data,
         eval_dataset=testing_data,
     )
+
+    with open(output_path + '/training/'+'config.json', 'x', encoding='utf-8') as f:
+        f.write(Args.toJSON())
 
     train_results = fine_tune_trainer.train(ignore_keys_for_eval=IGNORE_KEYS)
 
@@ -75,6 +78,3 @@ def fine_tuning(Args):
     metrics = fine_tune_trainer.evaluate(testing_data, ignore_keys=IGNORE_KEYS)
     fine_tune_trainer.log_metrics("eval", metrics)
     fine_tune_trainer.save_metrics("eval", metrics)
-
-    with open(output_path + '/training/'+'config.json', 'x', encoding='utf-8') as f:
-        f.write(Args.toJSON())
