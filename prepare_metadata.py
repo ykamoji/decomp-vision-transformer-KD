@@ -163,6 +163,51 @@ def write_metadata(dataSetPath, data_to_write):
     print(f"Prepaid data:\n\tTraining: {train_count}\n\tValidation: {valid_count}")
 
 
+def limit_per_class(Metadata, data_to_write):
+    print(f"Processing label frequencies ...")
+    start = time.time()
+    train_label_frequency = get_label_frequency(Metadata.Value, data_to_write, "train")
+    valid_label_frequency = get_label_frequency(Metadata.Value, data_to_write, "valid")
+    label_frequency = {"train": train_label_frequency, "valid": valid_label_frequency}
+    print(f"Time taken [Label frequency mapping] = {((time.time() - start) / 60):.5f} seconds")
+    start = time.time()
+
+    filtered_data_to_write = []
+    for data in tqdm(data_to_write):
+        split = "train" if data[0].startswith("train") else "valid"
+        allow = False
+        if label_frequency[split][data[1]] > 0:
+            allow = True
+            label_frequency[split][data[1]] -= 1
+
+        if allow:
+            filtered_data_to_write.append(data)
+    print(f"Time taken [Filtering] = {((time.time() - start) / 60):.5f} seconds")
+    return filtered_data_to_write
+
+
+def limit_on_total(Metadata, data_to_write):
+    filtered_data_to_write = []
+    print(f"Processing total labels ...")
+    start = time.time()
+    labels = [data[1] for data in tqdm(data_to_write)]
+    unique_labels = list(set(labels))
+    print(f"Time taken [Labels limits] = {((time.time() - start) / 60):.5f} seconds")
+    limit = Metadata.Value * len(unique_labels)
+    start = time.time()
+    for data in tqdm(data_to_write):
+        if data[1] < limit:
+            filtered_data_to_write.append(data)
+
+    print(f"Time taken [Filtering] = {((time.time() - start) / 60):.5f} seconds")
+
+    # filtered_labels = [data[1] for data in tqdm(filtered_data_to_write)]
+    # label_frequency = {key: filtered_labels.count(key) for key in tqdm(unique_labels)}
+    # print(label_frequency)
+
+    return filtered_data_to_write
+
+
 def create_metadata(dataSetPath, Metadata):
     if not os.path.exists(f"{dataSetPath}/metadata.csv") or \
             not os.path.exists(f"{dataSetPath}/metadata_train.csv") or \
@@ -177,29 +222,8 @@ def create_metadata(dataSetPath, Metadata):
             data_to_write = sorted(data_to_write, key=lambda data: data[0])
             print(f"Time taken [Sorting] = {((time.time() - start) / 60):.5f} seconds")
 
-            print(f"Processing label frequencies ...")
-            start = time.time()
-
-            train_label_frequency = get_label_frequency(Metadata.Value, data_to_write, "train")
-            valid_label_frequency = get_label_frequency(Metadata.Value, data_to_write, "valid")
-            label_frequency = {"train": train_label_frequency, "valid": valid_label_frequency}
-
-            print(f"Time taken [Label frequency mapping] = {((time.time() - start) / 60):.5f} seconds")
-
-            start = time.time()
-            filtered_data_to_write = []
-            for data in tqdm(data_to_write):
-                split = "train" if data[0].startswith("train") else "valid"
-                allow = False
-                if label_frequency[split][data[1]] > 0:
-                    allow = True
-                    label_frequency[split][data[1]] -= 1
-
-                if allow:
-                    filtered_data_to_write.append(data)
-
-            print(f"Time taken [Filtering] = {((time.time() - start) / 60):.5f} seconds")
-            data_to_write = filtered_data_to_write
+            # data_to_write = limit_per_class(Metadata, data_to_write)
+            data_to_write = limit_on_total(Metadata, data_to_write)
 
         ## Randomizing
         start = time.time()
@@ -208,6 +232,7 @@ def create_metadata(dataSetPath, Metadata):
         print(f"Time taken [Randomizing] = {((time.time() - start) / 60):.5f} seconds")
 
         write_metadata(dataSetPath, data_to_write)
+
 
 
 if __name__ == '__main__':
