@@ -8,6 +8,8 @@ def prepare_output_path(step, Args):
         model_name = Args.FineTuning.Model.Name
     elif step == 'Distilled':
         model_name = Args.Distillation.StudentModel.Name
+    elif step == 'Evaluation':
+        model_name = Args.Evaluate.Model.Name
 
     output_path = check_and_update_model_path(root, Args.Common.DataSet.Name, model_name)
     output_path += '/'
@@ -44,8 +46,10 @@ def get_checkpoint_path(step, Args):
 
     if Args.Distillation.Action:
         Model = Args.Distillation.StudentModel
-    else:
+    elif Args.FineTuning.Action:
         Model = Args.FineTuning.Model
+    else:
+        Model = Args.Evaluate.Model
 
     model_path = check_model_path(root, Model.Name, Args.Common.DataSet.Name, Model.Index)
     model_path += '/training/'
@@ -65,9 +69,11 @@ def get_model_path(step, Args):
     root = Args.Common.Results + step + '/'
 
     if Args.Distillation.Action:
-        Model = Args.Distillation.Model
+        Model = Args.Distillation.StudentModel
+    elif Args.FineTuning.Action:
+        Model = Args.FineTuning.Model
     else:
-        Model = Args.Visualization.Model
+        Model = Args.Evaluate.Model
 
     model_path = check_model_path(root, Model.Name, Args.Common.DataSet.Name, Model.Index)
     model_path += '/' + Args.Distillation.Model.OutputPath
