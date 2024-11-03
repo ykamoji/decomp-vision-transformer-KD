@@ -69,7 +69,7 @@ def get_model_path(step, Args):
     root = Args.Common.Results + step + '/'
 
     if Args.Distillation.Action:
-        Model = Args.Distillation.StudentModel
+        Model = Args.Distillation.Model
     elif Args.Visualization.Action:
         Model = Args.Visualization.Model
     else:
