@@ -97,8 +97,10 @@ Visualization:
   Model:
     Name: google/vit-base-patch16-224
     CachePath: model/
-    OutputPath: tuned-model/
+    OutputPath: tuned-model/ # or distilled-model/
     Index: -1
+    LoadCheckPoint: False
+    CheckPointIndex: -1
   Input: images   # kaggle datasets download -d hieu1344/imagenetsample
   Output: featureOutputs/
   UseOnlyCLSForATS: True

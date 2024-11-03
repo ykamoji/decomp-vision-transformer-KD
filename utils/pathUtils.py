@@ -70,13 +70,23 @@ def get_model_path(step, Args):
 
     if Args.Distillation.Action:
         Model = Args.Distillation.StudentModel
-    elif Args.FineTuning.Action:
-        Model = Args.FineTuning.Model
+    elif Args.Visualization.Action:
+        Model = Args.Visualization.Model
     else:
         Model = Args.Evaluate.Model
 
     model_path = check_model_path(root, Model.Name, Args.Common.DataSet.Name, Model.Index)
-    model_path += '/' + Args.Distillation.Model.OutputPath
+
+    if Args.Distillation.Action:
+        model_path += '/' + Args.Distillation.Model.OutputPath
+    elif Args.Visualization.Action:
+        model_path += '/' + Args.Visualization.Model.OutputPath
+    else:
+        if Args.Evaluate.Model.Type == 'FineTuned':
+            model_path += '/' + Args.FineTuning.Model.OutputPath
+        else:
+            model_path += '/' + Args.Distillation.Model.OutputPath
+
     return model_path
 
 
