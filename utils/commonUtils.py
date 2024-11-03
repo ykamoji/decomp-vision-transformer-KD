@@ -1,10 +1,23 @@
+import yaml
+import re
+
 IGNORE_KEYS = ['cls_logits', 'distillation_logits', 'hidden_states', 'attentions', 'attributions']
 
 
-def start_training(Args, trainer, loadCheckpoint, model, output_path, model_output, testing_data):
+def represent_bool(self, data):
+    if data:
+        return self.represent_scalar('tag:yaml.org,2002:bool', 'True')
+    return self.represent_scalar('tag:yaml.org,2002:bool', 'False')
 
-    with open(output_path + '/training/config.json', 'x', encoding='utf-8') as f:
-        f.write(Args.toJSON())
+
+yaml.add_representer(bool, represent_bool)
+
+
+def start_training(Args, trainer, loadCheckpoint, model, output_path, model_output, testing_data):
+    with open(output_path + '/training/config.yaml', 'w', encoding='utf-8') as f:
+        yaml_data = yaml.dump(Args, sort_keys=False,  default_flow_style=False)
+        cleaned_yaml = re.sub(r'(\s*!!.*$)|(^!!.*$)', '', yaml_data, flags=re.MULTILINE)
+        f.write(cleaned_yaml)
 
     if loadCheckpoint:
         train_results = trainer.train(ignore_keys_for_eval=IGNORE_KEYS, resume_from_checkpoint=model)

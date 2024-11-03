@@ -32,9 +32,9 @@ class DistillationTrainer(Trainer):
         self.student_loss_fn = student_loss_fn
         self.distillation_type = configArgs.Distillation.DistillationType
 
-        self.use_attribution_loss = configArgs.Distillation.UseAttributionLoss
+        self.use_attribution_loss = configArgs.Distillation.Attribution.UseLoss
         self.use_attention_loss = configArgs.Distillation.UseAttentionLoss
-        self.use_hidden_loss = configArgs.Distillation.UseHiddenLoss
+        self.use_hidden_loss = configArgs.Distillation.Hidden.UseLoss
         self.use_ats_loss = configArgs.Distillation.UseATSLoss
         self.attribution_loss_fn = nn.MSELoss()
         self.ats_loss_fn = nn.MSELoss()
@@ -74,7 +74,7 @@ class DistillationTrainer(Trainer):
 
         embedding_loss = self._hidden_loss(student_layers[0], teacher_layers[0])
 
-        self.tb_log('Loss/Embedding', embedding_loss.item())
+        # self.tb_log('Loss/Embedding', embedding_loss.item())
 
         teacher_layers = teacher_layers[1:]
         student_layers = student_layers[1:]
@@ -143,11 +143,31 @@ class DistillationTrainer(Trainer):
                 student_att = torch.index_select(student_att, 3, indices)
 
             if student_att.shape[1] != teacher_att.shape[1]:
-                tmp_loss = loss_mse(student_att.mean(1), teacher_att.mean(1))
+                # tmp_loss = loss_mse(student_att.mean(1), teacher_att.mean(1))
+                tmp_loss = self._apply_attn_loss(student_att, teacher_att)
             else:
                 tmp_loss = loss_mse(student_att, teacher_att)
             att_loss += tmp_loss
         return att_loss
+
+    def _apply_attn_loss(self, student_attn, teacher_attn):
+
+        s_flat = student_attn.view(student_attn.size(0), student_attn.size(1), -1)
+        t_flat = teacher_attn.view(teacher_attn.size(0), teacher_attn.size(1), -1)
+        similarity = F.cosine_similarity(t_flat.unsqueeze(2), s_flat.unsqueeze(1), dim=-1)
+        alignment_weights = F.softmax(similarity, dim=2)
+        aligned_teacher = torch.matmul(alignment_weights.transpose(1, 2), t_flat)
+        aligned_teacher = aligned_teacher.view_as(student_attn)
+
+        tmp_loss = nn.MSELoss()(student_attn, aligned_teacher)
+
+        # tmp_loss = F.kl_div(
+        #     F.log_softmax(student_attn, dim=-1),
+        #     F.softmax(aligned_teacher / self.temperature, dim=-1),
+        #     reduction='sum'
+        # ) * (self.temperature ** 2)
+
+        return tmp_loss
 
     def _process_attribution(self, attr):
         num_layers = len(attr)
@@ -270,8 +290,13 @@ class DistillationTrainer(Trainer):
             if self.use_ats_loss:
                 kwargs = {**kwargs, **{"output_ats": 1}}
 
-            s_kwargs = {**kwargs, **{"is_student":True}}
-            # s_kwargs = kwargs
+            s_kwargs = kwargs
+
+            if self.configArgs.Distillation.Attribution.WithClassifier:
+                s_kwargs = {**s_kwargs, **{"use_attribution_classifier": True}}
+
+            if self.configArgs.Distillation.Hidden.WithClassifier:
+                s_kwargs = {**s_kwargs, **{"use_hidden_classifier": True}}
 
         student_output = self.student(**student_inputs, **s_kwargs)
 

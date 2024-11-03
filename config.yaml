@@ -17,7 +17,7 @@ FineTuning:
     CachePath : model/
     OutputPath: tuned-model/
     Index: -1
-    LoadCheckPoint: True
+    LoadCheckPoint: False
     CheckPointIndex: -1
   Hyperparameters:
     TrainBatchSize: 8
@@ -45,7 +45,7 @@ Distillation:
     CachePath: model/
     OutputPath: distilled-model/
     Index: -1
-    LoadCheckPoint: True
+    LoadCheckPoint: False
     CheckPointIndex: -1
   Hyperparameters:
     TrainBatchSize: 8
@@ -65,10 +65,15 @@ Distillation:
   RandomWeights: False
   UseDistTokens: False
   DistillationType: soft # Set soft for KL divergence loss using probability or hard for cross entropy loss with logits
-  UseAttributionLoss: False
+  Attribution:
+    UseLoss: False
+    WithClassifier: False
   UseATSLoss : False
   UseAttentionLoss: False
-  UseHiddenLoss : False
+  Hidden:
+    UseLoss: False
+    WithClassifier: False
+    MatchClassifierOutputDimToTeacher: False
 
 Metadata:
   Limit: True
@@ -84,7 +89,8 @@ Visualization:
   Input: images   # kaggle datasets download -d hieu1344/imagenetsample
   Output: featureOutputs/
   UseOnlyCLSForATS: True
-  Strategies: [plus] # Options: rollout plus skipplus_first skipplus_last And/Or in combination
+  Strategies:  # Options: rollout plus skipplus_first skipplus_last And/Or in combination
+  - plus
   Features:
     CompareFeatures: False
     ThresholdScore: 3
@@ -98,4 +104,15 @@ Visualization:
     PlotMaskedCurves: False
     ThresholdScore: 0 # 0 means everything will be considered. >=1 means only the important patches will be chosen.
     BatchSize: 4
-    MaskedPerc: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100] # in %
+    MaskedPerc: # in %
+    - 0
+    - 10
+    - 20
+    - 30
+    - 40
+    - 50
+    - 60
+    - 70
+    - 80
+    - 90
+    - 100
