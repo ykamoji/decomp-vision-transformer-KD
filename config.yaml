@@ -75,6 +75,19 @@ Distillation:
     WithClassifier: False
     MatchClassifierOutputDimToTeacher: False
 
+Evaluate:
+  Action: True
+  Model:
+    UseLocal: False
+    Type: FineTuned # or Distilled
+    Name: google/vit-large-patch16-224
+    CachePath: model/
+    Index: -1
+    LoadCheckPoint: False
+    CheckPointIndex: -1
+  Hyperparameters:
+     EvalBatchSize: 32
+
 Metadata:
   Limit: True
   Value: 0.1
@@ -84,8 +97,10 @@ Visualization:
   Model:
     Name: google/vit-base-patch16-224
     CachePath: model/
-    OutputPath: tuned-model/
+    OutputPath: tuned-model/ # or distilled-model/
     Index: -1
+    LoadCheckPoint: False
+    CheckPointIndex: -1
   Input: images   # kaggle datasets download -d hieu1344/imagenetsample
   Output: featureOutputs/
   UseOnlyCLSForATS: True

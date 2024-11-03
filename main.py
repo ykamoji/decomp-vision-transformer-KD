@@ -1,5 +1,6 @@
 from fineTuning import fine_tuning
 from distillation import run_distillation
+from evaluation import evaluate
 from visualisation import visualize
 from prepare_metadata import create_metadata
 from utils.argUtils import CustomObject, get_yaml_loader
@@ -23,6 +24,9 @@ def start(configPath):
 
     if Args.Distillation.Action:
         run_distillation(Args)
+
+    if Args.Evaluate.Action:
+        evaluate(Args)
 
     if Args.Visualization.Action:
         visualize(Args)

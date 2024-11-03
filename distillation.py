@@ -66,17 +66,6 @@ def get_student_config(Distillation, teacher_config):
 
 
 def run_distillation(Args):
-    try:
-        if Args.Distillation.Model.UseLocal:
-            fine_tuned_model_path = get_model_path('FineTuned', Args)
-        else:
-            fine_tuned_model_path = ''
-        teacher_model = ViTForImageClassification.from_pretrained(fine_tuned_model_path)
-    except Exception as e:
-        print(f"Warning: {e}. Using huggingface pretrained model.")
-        teacher_model = ViTForImageClassification.from_pretrained(Args.Distillation.Model.Name,
-                                                                  cache_dir=Args.Distillation.Model.CachePath)
-    # print(teacher_model)
 
     _, training_data, testing_data = build_dataset(True, Args)
 
@@ -86,6 +75,19 @@ def run_distillation(Args):
         classificationMode = DeiTForImageClassificationWithTeacher
     else:
         classificationMode = ViTForImageClassification
+
+    try:
+        if Args.Distillation.Model.UseLocal:
+            fine_tuned_model_path = get_model_path('FineTuned', Args)
+        else:
+            fine_tuned_model_path = ''
+        teacher_model = classificationMode.from_pretrained(fine_tuned_model_path)
+    except Exception as e:
+        print(f"Warning: {e}. Using huggingface pretrained model.")
+        teacher_model = classificationMode.from_pretrained(Args.Distillation.Model.Name,
+                                                                  cache_dir=Args.Distillation.Model.CachePath)
+
+    # print(teacher_model)
 
     student_config = get_student_config(Args.Distillation, teacher_model.config)
 
