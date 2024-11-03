@@ -61,7 +61,6 @@ def get_student_config(Distillation, teacher_config):
     student_config.use_hidden_classifier = use_hidden_classifier
     student_config.hidden_classifier_dim = hidden_classifier_dim
     student_config.use_attribution_classifier = use_attribution_classifier
-    student_config.num_labels = teacher_config.num_labels
 
     return student_config
 
