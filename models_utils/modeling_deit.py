@@ -1132,11 +1132,12 @@ class DeiTForImageClassificationWithTeacher(DeiTPreTrainedModel):
             nn.Linear(config.hidden_size, config.num_labels) if config.num_labels > 0 else nn.Identity()
         )
 
-        atten_size = self.deit.get_input_embeddings().num_patches
+        if hasattr(config, "use_attribution_classifier") and config.use_attribution_classifier:
+            atten_size = self.vit.get_input_embeddings().num_patches
+            self.attribution_classifier = nn.Linear(atten_size + 1, atten_size + 1)
 
-        self.attribution_classifier = nn.Linear(atten_size + 2, atten_size + 2)
-
-        self.layer_classifier = nn.Linear(config.hidden_size, config.hidden_size)
+        if hasattr(config, "use_hidden_classifier") and config.use_hidden_classifier:
+            self.layer_classifier = nn.Linear(config.hidden_size, config.hidden_classifier_dim)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -1158,7 +1159,8 @@ class DeiTForImageClassificationWithTeacher(DeiTPreTrainedModel):
         output_norms: Optional[bool] = False,
         output_globenc: Optional[bool] = False,
         output_ats: Optional[int] = 0,
-        is_student: Optional[bool] = False,
+        use_hidden_classifier: Optional[bool] = False,
+        use_attribution_classifier: Optional[bool] = False,
     ) -> Union[tuple, DeiTForImageClassificationWithTeacherOutput]:
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -1182,16 +1184,16 @@ class DeiTForImageClassificationWithTeacher(DeiTPreTrainedModel):
         logits = (cls_logits + distillation_logits) / 2
 
         transformed_attribution = ()
+        if use_attribution_classifier:
+            for layer in range(len(outputs.attributions)):
+                trans_attr = self.attribution_classifier(outputs.attributions[layer])
+                transformed_attribution = transformed_attribution + (trans_attr,)
+
         transformed_layer = ()
-        if is_student:
-            if outputs.attributions:
-                for layer in range(len(outputs.attributions)):
-                    trans_attr = self.attribution_classifier(outputs.attributions[layer])
-                    transformed_attribution = transformed_attribution + (trans_attr,)
-            if outputs.hidden_states:
-                for layer in range(len(outputs.hidden_states)):
-                    trans_hidden = self.layer_classifier(outputs.hidden_states[layer])
-                    transformed_layer = transformed_layer + (trans_hidden,)
+        if use_hidden_classifier:
+            for layer in range(len(outputs.hidden_states)):
+                trans_hidden = self.layer_classifier(outputs.hidden_states[layer])
+                transformed_layer = transformed_layer + (trans_hidden,)
 
         if not return_dict:
             output = (logits, cls_logits, distillation_logits) + outputs[1:]

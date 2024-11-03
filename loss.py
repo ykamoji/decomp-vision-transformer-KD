@@ -32,9 +32,9 @@ class DistillationTrainer(Trainer):
         self.student_loss_fn = student_loss_fn
         self.distillation_type = configArgs.Distillation.DistillationType
 
-        self.use_attribution_loss = configArgs.Distillation.UseAttributionLoss
+        self.use_attribution_loss = configArgs.Distillation.Attribution.UseLoss
         self.use_attention_loss = configArgs.Distillation.UseAttentionLoss
-        self.use_hidden_loss = configArgs.Distillation.UseHiddenLoss
+        self.use_hidden_loss = configArgs.Distillation.Hidden.UseLoss
         self.use_ats_loss = configArgs.Distillation.UseATSLoss
         self.attribution_loss_fn = nn.MSELoss()
         self.ats_loss_fn = nn.MSELoss()
@@ -74,7 +74,7 @@ class DistillationTrainer(Trainer):
 
         embedding_loss = self._hidden_loss(student_layers[0], teacher_layers[0])
 
-        self.tb_log('Loss/Embedding', embedding_loss.item())
+        # self.tb_log('Loss/Embedding', embedding_loss.item())
 
         teacher_layers = teacher_layers[1:]
         student_layers = student_layers[1:]
@@ -270,8 +270,13 @@ class DistillationTrainer(Trainer):
             if self.use_ats_loss:
                 kwargs = {**kwargs, **{"output_ats": 1}}
 
-            s_kwargs = {**kwargs, **{"is_student":True}}
-            # s_kwargs = kwargs
+            s_kwargs = kwargs
+
+            if self.configArgs.Distillation.Attribution.WithClassifier:
+                s_kwargs = {**s_kwargs, **{"use_attribution_classifier": True}}
+
+            if self.configArgs.Distillation.Hidden.WithClassifier:
+                s_kwargs = {**s_kwargs, **{"use_hidden_classifier": True}}
 
         student_output = self.student(**student_inputs, **s_kwargs)
 
