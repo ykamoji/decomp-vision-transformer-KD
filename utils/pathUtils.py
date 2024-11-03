@@ -85,7 +85,7 @@ def get_model_path(step, Args):
         if Args.Evaluate.Model.Type == 'FineTuned':
             model_path += '/' + Args.FineTuning.Model.OutputPath
         else:
-            model_path += '/' + Args.Distillation.Model.OutputPath
+            model_path += '/' + Args.Distillation.StudentModel.OutputPath
 
     return model_path
 

@@ -39,7 +39,7 @@ def evaluate(Args):
     try:
         if Args.Evaluate.Model.LoadCheckPoint:
             model_path = get_checkpoint_path(Args.Evaluate.Model.Type, Args)
-        elif Args.Distillation.Model.UseLocal:
+        elif Args.Evaluate.Model.UseLocal:
             model_path = get_model_path(Args.Evaluate.Model.Type, Args)
         else:
             model_path = ''

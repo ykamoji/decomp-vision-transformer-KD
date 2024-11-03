@@ -19,14 +19,14 @@ def start(configPath):
     if Args.Common.DataSet.Name == 'imageNet':
         create_metadata(Args.Common.DataSet.Path, Args.Metadata)
 
-    if Args.Evaluate.Action:
-        evaluate(Args)
-
     if Args.FineTuning.Action:
         fine_tuning(Args)
 
     if Args.Distillation.Action:
         run_distillation(Args)
+
+    if Args.Evaluate.Action:
+        evaluate(Args)
 
     if Args.Visualization.Action:
         visualize(Args)
