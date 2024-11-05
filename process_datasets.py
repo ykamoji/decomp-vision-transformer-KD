@@ -88,10 +88,7 @@ def build_dataset(is_train, Args, show_details=True):
 
     if DataSet.Name == 'imageNet':
         def preprocess(batchImage):
-            batches = [img.convert("RGB") if img.mode != 'RGB' else img for img in batchImage['image']]
-            inputs = feature_extractor(batches, return_tensors='pt')
-            inputs['label'] = batchImage[label_key]
-            return inputs
+            pass
 
     else:
         def preprocess(batchImage):

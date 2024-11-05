@@ -76,7 +76,7 @@ Distillation:
     MatchClassifierOutputDimToTeacher: False
 
 Evaluate:
-  Action: True
+  Action: False
   Model:
     UseLocal: False
     Type: FineTuned # or Distilled

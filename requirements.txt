@@ -11,8 +11,9 @@ seaborn==0.12.2
 matplotlib==3.7.1
 pandas==1.5.3
 pillow==10.3.0
-tqdm==4.65.0
+tqdm==4.66.3
 p-tqdm==1.2
 scipy==1.11.4
 networkx==3.1
 scikit-learn==1.5.1
+accelerate==0.26.0
