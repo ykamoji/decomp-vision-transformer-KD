@@ -1,5 +1,7 @@
 # Attribution distillation learning for image classification 
 
+![Screenshot](./Poster.png)
+
 ### Requirements
 ```angular2html
 torch==2.2.0
